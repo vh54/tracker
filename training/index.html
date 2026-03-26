@@ -282,7 +282,7 @@ const planSessions = [];
     const end = new Date(2026,6,31,0,0,0,0);
     while (cur <= end) {
         const dow = cur.getDay();
-        if (dow===1||dow===6) {
+        if (dow===3||dow===6) {
             const wk = Math.floor(sCount/2);
             const weight = WEIGHTS[Math.min(wk, WEIGHTS.length-1)];
             planSessions.push({
