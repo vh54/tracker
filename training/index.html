@@ -194,7 +194,7 @@
             <div class="stat-pill">Remaining: <strong id="b-sessions-left">0</strong></div>
         </div>
         <div class="prog-bar-wrap">
-            <div class="prog-bar-label"><span>Bench progress · goal 100 kg</span><span id="b-overall-pct">0%</span></div>
+            <div class="prog-bar-label"><span>Bench progress · goal 80 kg</span><span id="b-overall-pct">0%</span></div>
             <div class="bar-track"><div class="bar-fill" id="b-overall-bar" style="width:0%;background:var(--green)"></div></div>
         </div>
         <div class="save-row" id="b-save-indicator"></div>
@@ -282,7 +282,7 @@ const planSessions = [];
     const end = new Date(2026,6,31,0,0,0,0);
     while (cur <= end) {
         const dow = cur.getDay();
-        if (dow===1||dow===4) {
+        if (dow===1||dow===6) {
             const wk = Math.floor(sCount/2);
             const weight = WEIGHTS[Math.min(wk, WEIGHTS.length-1)];
             planSessions.push({
@@ -299,25 +299,25 @@ const planSessions = [];
     }
 }
 
-// Flat run list
+// Flat run list — Thu + Sun pattern
 const allRuns = [
-    {id:'w1r1',date:'2026-03-30',km:6,  pace:'5:15–5:30/km'},
-    {id:'w1r2',date:'2026-04-02',km:8,  pace:'5:15–5:30/km'},
-    {id:'w2r1',date:'2026-04-06',km:7,  pace:'5:10–5:25/km'},
-    {id:'w2r2',date:'2026-04-09',km:10, pace:'5:15–5:30/km'},
-    {id:'w3r1',date:'2026-04-13',km:5,  pace:'5:20–5:40/km'},
-    {id:'w3r2',date:'2026-04-16',km:8,  pace:'5:20–5:40/km'},
-    {id:'w4r1',date:'2026-04-20',km:8,  pace:'5:10–5:25/km'},
-    {id:'w4r2',date:'2026-04-23',km:13, pace:'5:15–5:30/km'},
-    {id:'w5r1',date:'2026-04-27',km:9,  pace:'5:10–5:25/km'},
-    {id:'w5r2',date:'2026-04-30',km:15, pace:'5:15–5:30/km'},
-    {id:'w6r1',date:'2026-05-04',km:6,  pace:'5:20–5:40/km'},
-    {id:'w6r2',date:'2026-05-07',km:10, pace:'5:20–5:40/km'},
-    {id:'w7r1',date:'2026-05-11',km:10, pace:'5:10–5:25/km'},
-    {id:'w7r2',date:'2026-05-14',km:17, pace:'5:15–5:30/km'},
-    {id:'w8r1',date:'2026-05-18',km:7,  pace:'5:10–5:20/km'},
-    {id:'w8r2',date:'2026-05-21',km:12, pace:'5:10–5:20/km'},
-    {id:'w9r1',date:'2026-05-25',km:5,  pace:'easy'},
+    {id:'w1r1',date:'2026-04-02',km:6,  pace:'5:15–5:30/km'},  // Thu
+    {id:'w1r2',date:'2026-04-05',km:8,  pace:'5:15–5:30/km'},  // Sun
+    {id:'w2r1',date:'2026-04-09',km:7,  pace:'5:10–5:25/km'},  // Thu
+    {id:'w2r2',date:'2026-04-12',km:10, pace:'5:15–5:30/km'},  // Sun
+    {id:'w3r1',date:'2026-04-16',km:5,  pace:'5:20–5:40/km'},  // Thu
+    {id:'w3r2',date:'2026-04-19',km:8,  pace:'5:20–5:40/km'},  // Sun
+    {id:'w4r1',date:'2026-04-23',km:8,  pace:'5:10–5:25/km'},  // Thu
+    {id:'w4r2',date:'2026-04-26',km:13, pace:'5:15–5:30/km'},  // Sun
+    {id:'w5r1',date:'2026-04-30',km:9,  pace:'5:10–5:25/km'},  // Thu
+    {id:'w5r2',date:'2026-05-03',km:15, pace:'5:15–5:30/km'},  // Sun
+    {id:'w6r1',date:'2026-05-07',km:6,  pace:'5:20–5:40/km'},  // Thu
+    {id:'w6r2',date:'2026-05-10',km:10, pace:'5:20–5:40/km'},  // Sun
+    {id:'w7r1',date:'2026-05-14',km:10, pace:'5:10–5:25/km'},  // Thu
+    {id:'w7r2',date:'2026-05-17',km:17, pace:'5:15–5:30/km'},  // Sun
+    {id:'w8r1',date:'2026-05-21',km:7,  pace:'5:10–5:20/km'},  // Thu
+    {id:'w8r2',date:'2026-05-24',km:12, pace:'5:10–5:20/km'},  // Sun
+    {id:'w9r1',date:'2026-05-28',km:5,  pace:'easy'},          // Thu (3 days before race)
 ];
 
 // ═══════════════════════════════════════════════════
