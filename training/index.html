@@ -145,30 +145,24 @@
                 <i class="bi bi-upload"></i>
                 <input type="file" id="importFile" accept=".json" style="display:none">
             </label>
-            <button class="btn btn-accent btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-                <i class="bi bi-plus-lg me-1"></i>Log
-            </button>
         </div>
     </div>
 </nav>
 
 <div class="container py-0">
     <div class="tab-bar">
-        <button class="tab-btn active" onclick="window.switchTab('schedule',this)">
-            <i class="bi bi-calendar-week me-1"></i>Schedule
-        </button>
-        <button class="tab-btn" onclick="window.switchTab('progress',this)">
-            <i class="bi bi-graph-up me-1"></i>Progress
-        </button>
-        <button class="tab-btn" onclick="window.switchTab('running',this)">
+        <button class="tab-btn active" onclick="window.switchTab('running',this)">
             <i class="bi bi-person-walking me-1"></i>Running
+        </button>
+        <button class="tab-btn" onclick="window.switchTab('schedule',this)">
+            <i class="bi bi-calendar-week me-1"></i>Bench
         </button>
     </div>
 
     <div id="errorBanner" class="error-banner d-none"></div>
 
     <!-- ════ SCHEDULE TAB ════ -->
-    <div id="tab-schedule">
+    <div id="tab-schedule" style="display:none">
         <div class="sched-stats">
             <div class="sched-pill">Sessions done: <strong id="sessions-done">0</strong></div>
             <div class="sched-pill">Exercises done: <strong id="exercises-done">0</strong></div>
@@ -187,50 +181,8 @@
         <div id="plan"></div>
     </div>
 
-    <!-- ════ PROGRESS TAB ════ -->
-    <div id="tab-progress" style="display:none">
-        <div class="row g-3 mb-4">
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-label"><i class="bi bi-trophy me-1"></i>Best 1RM</div>
-                    <div class="stat-value" id="s-1rm">—</div>
-                    <div class="stat-sub" id="s-1rm-d">no data</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-label"><i class="bi bi-lightning me-1"></i>Last Session</div>
-                    <div class="stat-value" id="s-last">—</div>
-                    <div class="stat-sub" id="s-last-d">no data</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-label"><i class="bi bi-calendar-check me-1"></i>Sessions</div>
-                    <div class="stat-value" id="s-count">0</div>
-                    <div class="stat-sub">total logged</div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="stat-card">
-                    <div class="stat-label"><i class="bi bi-layers me-1"></i>Total Volume</div>
-                    <div class="stat-value" id="s-vol">0</div>
-                    <div class="stat-sub">kg lifted</div>
-                </div>
-            </div>
-        </div>
-        <div class="panel mb-4">
-            <div class="panel-title"><i class="bi bi-graph-up me-2" style="color:var(--accent)"></i>Estimated 1RM Over Time</div>
-            <div style="position:relative;height:200px"><canvas id="chart"></canvas></div>
-        </div>
-        <div class="panel">
-            <div class="panel-title"><i class="bi bi-clock-history me-2" style="color:var(--accent)"></i>Session History</div>
-            <div id="sessionList"><div class="empty-state"><i class="bi bi-dumbbell"></i>Loading...</div></div>
-        </div>
-    </div>
-
     <!-- ════ RUNNING TAB ════ -->
-    <div id="tab-running" style="display:none">
+    <div id="tab-running">
         <div class="sched-stats">
             <div class="sched-pill">Runs done: <strong id="r-runs-done">0</strong></div>
             <div class="sched-pill">km logged: <strong id="r-km-done">0</strong></div>
@@ -921,7 +873,6 @@ document.getElementById('importFile').addEventListener('change',async e=>{
 // ── Tab switching ─────────────────────────────────────────────────
 window.switchTab = function(tab,btn) {
     document.getElementById('tab-schedule').style.display=tab==='schedule'?'block':'none';
-    document.getElementById('tab-progress').style.display=tab==='progress'?'block':'none';
     document.getElementById('tab-running').style.display=tab==='running'?'block':'none';
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
