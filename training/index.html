@@ -88,15 +88,15 @@
         .week-nav-today { font-size: .72rem; color: #555; cursor: pointer; }
         .week-nav-today:hover { color: var(--accent); }
 
-        .day-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+        .day-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 7px 12px; margin-bottom: 6px; }
         .day-card.is-today { border-color: var(--accent); }
         .day-card.is-past { opacity: .55; }
-        .day-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-        .day-label { font-size: .75rem; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-        .day-date-num { font-size: .95rem; font-weight: 600; color: #e0e0e0; }
-        .today-badge { font-size: .62rem; background: var(--accent); color: #fff; border-radius: 4px; padding: 1px 6px; font-weight: 700; margin-left: 6px; vertical-align: middle; }
-        .activity-pills { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0 4px; }
-        .pill { font-size: .7rem; padding: 2px 8px; border-radius: 10px; font-weight: 500; line-height: 1.7; }
+        .day-head { display: flex; align-items: center; gap: 8px; margin-bottom: 0; }
+        .day-label { font-size: .68rem; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .8px; min-width: 60px; }
+        .day-date-num { font-size: .82rem; font-weight: 600; color: #e0e0e0; }
+        .today-badge { font-size: .58rem; background: var(--accent); color: #fff; border-radius: 4px; padding: 1px 5px; font-weight: 700; margin-left: 5px; vertical-align: middle; }
+        .activity-pills { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+        .pill { font-size: .68rem; padding: 1px 7px; border-radius: 10px; font-weight: 500; line-height: 1.7; }
         .pill-bench { background: var(--green-bg); color: var(--green); }
         .pill-run { background: var(--blue-bg); color: var(--blue); }
         .pill-custom { background: var(--amber-bg); color: var(--amber); display: inline-flex; align-items: center; gap: 4px; }
@@ -106,7 +106,7 @@
         .pill-move:hover { opacity: 1; }
 
         .add-event-area { margin-top: 6px; }
-        .add-event-btn { font-size: .75rem; color: #555; background: none; border: 1px dashed #333; border-radius: 6px; padding: 2px 9px; cursor: pointer; transition: color .15s, border-color .15s; }
+        .add-event-btn { font-size: .68rem; color: #555; background: none; border: 1px dashed #333; border-radius: 6px; padding: 1px 8px; cursor: pointer; transition: color .15s, border-color .15s; }
         .add-event-btn:hover { color: #aaa; border-color: #555; }
         .event-input-row { display: flex; gap: 5px; align-items: center; }
         .event-input { background: #111128; border: 1px solid var(--card-border); color: #e0e0e0; border-radius: 6px; padding: 3px 8px; font-size: .8rem; flex: 1; outline: none; }
@@ -148,7 +148,7 @@
             <i class="bi bi-person-walking me-1"></i>Running
         </button>
         <button class="tab-btn" onclick="window.switchTab('bench',this)">
-            <i class="bi bi-dumbbell me-1"></i>Bench
+            <i class="bi bi-lightning-charge-fill me-1"></i>Bench
         </button>
     </div>
 
@@ -501,7 +501,7 @@ window.renderSchedule = function() {
             const done = EXERCISES.every(ex => planState[`${s.key}__${ex.id}`]);
             const moved = s.key !== iso;
             pillsHtml += `<span class="pill pill-bench">
-                ${done?'✓ ':''}<i class="bi bi-dumbbell"></i> Bench ${wLabel(s.weight)}${moved?'<span class="moved-badge">moved</span>':''}
+                ${done?'✓ ':''}<i class="bi bi-lightning-charge-fill"></i> Bench ${wLabel(s.weight)}${moved?'<span class="moved-badge">moved</span>':''}
                 <button class="pill-move" onclick="window.startReschedule(event,'bench','${s.key}','${iso}')" title="Move to another date">↔</button>
             </span>`;
         });
@@ -519,10 +519,8 @@ window.renderSchedule = function() {
 
         card.innerHTML = `
             <div class="day-head">
-                <div>
-                    <div class="day-label">${DAYS_LNG[d.getDay()]}</div>
-                    <div class="day-date-num">${d.getDate()} ${MONTHS[d.getMonth()]}${isToday?'<span class="today-badge">today</span>':''}</div>
-                </div>
+                <div class="day-label">${DAYS_LNG[d.getDay()]}</div>
+                <div class="day-date-num">${d.getDate()} ${MONTHS[d.getMonth()]}${isToday?'<span class="today-badge">today</span>':''}</div>
             </div>
             ${pillsHtml?`<div class="activity-pills">${pillsHtml}</div>`:''}
             <div class="add-event-area" id="add-area-${iso}">
