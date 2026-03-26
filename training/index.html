@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --accent: #ff6b35;
+            --card-bg: #1a1a2e;
+            --card-border: #2d2d44;
+            --green: #4ade80;
+            --green-bg: rgba(74,222,128,.12);
+            --amber: #fbbf24;
+            --amber-bg: rgba(251,191,36,.12);
+            --blue: #60a5fa;
+            --blue-bg: rgba(96,165,250,.12);
+        }
+        * { box-sizing: border-box; }
+        body { background: #0f0f1a; color: #e0e0e0; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+        /* ── Navbar ── */
+        .navbar { background: rgba(15,15,26,.96) !important; backdrop-filter: blur(10px); border-bottom: 1px solid var(--card-border); }
+        .navbar-brand { font-size: 1.3rem; font-weight: 800; color: var(--accent) !important; letter-spacing: -.5px; }
+
+        /* ── Tabs ── */
+        .tab-bar { display: flex; gap: 4px; padding: 1rem 0 0; border-bottom: 1px solid var(--card-border); margin-bottom: 1.5rem; }
+        .tab-btn { background: none; border: none; border-bottom: 2.5px solid transparent; color: #888; font-size: .9rem; font-weight: 600; padding: .5rem 1.1rem .75rem; cursor: pointer; transition: color .15s, border-color .15s; margin-bottom: -1px; }
+        .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .tab-btn:hover:not(.active) { color: #ccc; }
+
+        /* ── Stat cards ── */
+        .stat-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 1.25rem; transition: transform .2s, box-shadow .2s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,107,53,.15); }
+        .stat-label { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: .25rem; }
+        .stat-value { font-size: 1.8rem; font-weight: 700; color: var(--accent); line-height: 1; }
+        .stat-sub { font-size: .75rem; color: #666; margin-top: .25rem; }
+
+        /* ── Panels ── */
+        .panel { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 16px; padding: 1.5rem; }
+        .panel-title { font-size: .7rem; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 1rem; }
+
+        /* ── Buttons ── */
+        .btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+        .btn-accent:hover { background: #e55a25; border-color: #e55a25; color: #fff; }
+
+        /* ── Progress tab — session cards ── */
+        .session-card { background: #111128; border: 1px solid var(--card-border); border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: .75rem; transition: border-color .2s; }
+        .session-card:hover { border-color: var(--accent); }
+        .session-date { font-weight: 700; color: var(--accent); }
+        .set-badge { background: #2d2d44; color: #ccc; padding: .15rem .55rem; border-radius: 6px; font-size: .8rem; font-family: monospace; display: inline-block; margin: .1rem .1rem .1rem 0; }
+        .set-badge.top { background: rgba(255,107,53,.2); color: var(--accent); font-weight: 700; }
+        .pr-badge { background: linear-gradient(135deg,#ffd700,#ff8c00); color: #000; font-weight: 700; padding: .1rem .45rem; border-radius: 4px; font-size: .65rem; text-transform: uppercase; vertical-align: middle; }
+
+        /* ── Modals ── */
+        .modal-content { background: #1a1a2e; border: 1px solid var(--card-border); border-radius: 16px; }
+        .form-control, .form-select { background: #111128; border-color: var(--card-border); color: #e0e0e0; }
+        .form-control:focus, .form-select:focus { background: #111128; border-color: var(--accent); color: #e0e0e0; box-shadow: 0 0 0 .2rem rgba(255,107,53,.15); }
+        .form-control::placeholder { color: #555; }
+        .set-row { background: #111128; border: 1px solid var(--card-border); border-radius: 8px; padding: .6rem .75rem; margin-bottom: .45rem; display: flex; align-items: center; gap: .5rem; }
+        .set-num { font-size: .8rem; color: #666; min-width: 1.8rem; }
+
+        /* ── Schedule tab ── */
+        .sched-stats { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .sched-pill { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 5px 14px; font-size: 12px; color: #888; font-family: monospace; }
+        .sched-pill strong { color: #e0e0e0; font-weight: 500; }
+
+        .overall-bar-wrap { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 16px; margin-bottom: 1.25rem; }
+        .overall-bar-label { display: flex; justify-content: space-between; font-size: 12px; color: #888; font-family: monospace; margin-bottom: 8px; }
+        .bar-track { background: var(--card-border); border-radius: 4px; height: 6px; overflow: hidden; }
+        .bar-fill { background: var(--green); height: 6px; border-radius: 4px; transition: width .4s ease; }
+
+        .sched-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 1rem; font-size: 12px; color: #888; font-family: monospace; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
+
+        .week-block { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; margin-bottom: 10px; overflow: hidden; }
+        .week-header { display: flex; align-items: center; padding: 12px 16px; cursor: pointer; gap: 10px; user-select: none; transition: background .15s; }
+        .week-header:hover { background: #111128; }
+        .week-num { font-family: monospace; font-size: 11px; font-weight: 500; color: #666; min-width: 44px; }
+        .week-title { font-size: 14px; font-weight: 500; flex: 1; }
+        .weight-tag { font-family: monospace; font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 20px; }
+        .tag-normal { background: var(--blue-bg); color: var(--blue); }
+        .tag-goal { background: var(--amber-bg); color: var(--amber); }
+        .tag-done { background: var(--green-bg); color: var(--green); }
+        .week-prog { font-family: monospace; font-size: 11px; color: #666; min-width: 28px; text-align: right; }
+        .chevron { color: #666; font-size: 10px; transition: transform .2s; min-width: 12px; text-align: center; }
+        .week-body { display: none; }
+        .week-body.open { display: block; }
+
+        .session-block { border-top: 1px solid var(--card-border); }
+        .session-hdr { display: flex; align-items: center; padding: 10px 16px; gap: 10px; cursor: pointer; transition: background .12s; user-select: none; background: #111128; }
+        .session-hdr:hover { background: #0f0f1a; }
+        .session-cb { width: 20px; height: 20px; border: 1.5px solid var(--card-border); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s, border-color .15s; background: var(--card-bg); }
+        .session-cb.checked { background: var(--green); border-color: var(--green); }
+        .check-svg { display: none; }
+        .session-cb.checked .check-svg { display: block; }
+        .session-info { flex: 1; }
+        .ses-name { font-size: 14px; font-weight: 500; }
+        .ses-date { font-size: 12px; color: #888; font-family: monospace; margin-top: 1px; }
+        .session-hdr.all-done .ses-name { color: #555; text-decoration: line-through; }
+        .session-hdr.all-done .ses-date { color: #555; }
+        .sub-chev { font-size: 9px; color: #666; transition: transform .2s; }
+
+        .exercises-list { display: none; }
+        .exercises-list.open { display: block; }
+        .exercise-row { display: flex; align-items: center; padding: 9px 16px 9px 48px; gap: 10px; cursor: pointer; border-top: 1px solid var(--card-border); transition: background .1s; }
+        .exercise-row:hover { background: #111128; }
+        .ex-cb { width: 17px; height: 17px; border: 1.5px solid var(--card-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--card-bg); transition: background .15s, border-color .15s; }
+        .ex-cb.checked { background: var(--green); border-color: var(--green); }
+        .ex-cb.checked .ex-check { display: block; }
+        .ex-check { display: none; }
+        .ex-name { font-size: 13px; flex: 1; }
+        .exercise-row.done .ex-name { text-decoration: line-through; color: #555; }
+        .ex-detail { font-family: monospace; font-size: 11px; color: #666; }
+
+        .week-bar-wrap { padding: 8px 16px; border-top: 1px solid var(--card-border); }
+        .week-bar-track { background: var(--card-border); border-radius: 3px; height: 3px; }
+        .week-bar-fill { background: var(--green); height: 3px; border-radius: 3px; transition: width .3s; }
+        .save-row { font-family: monospace; font-size: 11px; color: #666; text-align: right; margin-bottom: 10px; min-height: 14px; }
+
+        /* ── Misc ── */
+        .empty-state { text-align: center; padding: 3rem 1rem; color: #555; }
+        .empty-state i { font-size: 3rem; display: block; margin-bottom: 1rem; color: #333; }
+        .spinner-overlay { position: fixed; inset: 0; background: rgba(15,15,26,.75); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .error-banner { background: rgba(220,53,69,.15); border: 1px solid rgba(220,53,69,.4); border-radius: 10px; padding: .75rem 1rem; color: #f8a0a0; margin-bottom: 1rem; font-size: .875rem; }
+
+        @media (max-width: 576px) { .stat-value { font-size: 1.4rem; } .navbar-brand { font-size: 1.1rem; } }
+    </style>
+</head>
+<body>
+
+<div class="spinner-overlay" id="loadingOverlay">
+    <div class="spinner-border" style="color:var(--accent);width:3rem;height:3rem;" role="status"></div>
+</div>
+
+<nav class="navbar navbar-dark sticky-top">
+    <div class="container">
+        <span class="navbar-brand"><i class="bi bi-bar-chart-fill me-2"></i>TRAINING TRACKER</span>
+        <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-outline-secondary" onclick="window.exportData()" title="Export"><i class="bi bi-download"></i></button>
+            <label class="btn btn-sm btn-outline-secondary mb-0" title="Import" style="cursor:pointer">
+                <i class="bi bi-upload"></i>
+                <input type="file" id="importFile" accept=".json" style="display:none">
+            </label>
+            <button class="btn btn-accent btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="bi bi-plus-lg me-1"></i>Log
+            </button>
+        </div>
+    </div>
+</nav>
+
+<div class="container py-0">
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="window.switchTab('schedule',this)">
+            <i class="bi bi-calendar-week me-1"></i>Schedule
+        </button>
+        <button class="tab-btn" onclick="window.switchTab('progress',this)">
+            <i class="bi bi-graph-up me-1"></i>Progress
+        </button>
+    </div>
+
+    <div id="errorBanner" class="error-banner d-none"></div>
+
+    <!-- ════ SCHEDULE TAB ════ -->
+    <div id="tab-schedule">
+        <div class="sched-stats">
+            <div class="sched-pill">Sessions done: <strong id="sessions-done">0</strong></div>
+            <div class="sched-pill">Exercises done: <strong id="exercises-done">0</strong></div>
+            <div class="sched-pill">Remaining: <strong id="sessions-left">0</strong></div>
+        </div>
+        <div class="overall-bar-wrap">
+            <div class="overall-bar-label"><span>Overall progress</span><span id="overall-pct">0%</span></div>
+            <div class="bar-track"><div class="bar-fill" id="overall-bar" style="width:0%"></div></div>
+        </div>
+        <div class="sched-legend">
+            <span><span class="legend-dot" style="background:var(--blue)"></span>working weight</span>
+            <span><span class="legend-dot" style="background:var(--amber)"></span>goal weight (60 kg)</span>
+            <span><span class="legend-dot" style="background:var(--green)"></span>week complete</span>
+        </div>
+        <div class="save-row" id="save-indicator"></div>
+        <div id="plan"></div>
+    </div>
+
+    <!-- ════ PROGRESS TAB ════ -->
+    <div id="tab-progress" style="display:none">
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-trophy me-1"></i>Best 1RM</div>
+                    <div class="stat-value" id="s-1rm">—</div>
+                    <div class="stat-sub" id="s-1rm-d">no data</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-lightning me-1"></i>Last Session</div>
+                    <div class="stat-value" id="s-last">—</div>
+                    <div class="stat-sub" id="s-last-d">no data</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-calendar-check me-1"></i>Sessions</div>
+                    <div class="stat-value" id="s-count">0</div>
+                    <div class="stat-sub">total logged</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-card">
+                    <div class="stat-label"><i class="bi bi-layers me-1"></i>Total Volume</div>
+                    <div class="stat-value" id="s-vol">0</div>
+                    <div class="stat-sub">kg lifted</div>
+                </div>
+            </div>
+        </div>
+        <div class="panel mb-4">
+            <div class="panel-title"><i class="bi bi-graph-up me-2" style="color:var(--accent)"></i>Estimated 1RM Over Time</div>
+            <div style="position:relative;height:200px"><canvas id="chart"></canvas></div>
+        </div>
+        <div class="panel">
+            <div class="panel-title"><i class="bi bi-clock-history me-2" style="color:var(--accent)"></i>Session History</div>
+            <div id="sessionList"><div class="empty-state"><i class="bi bi-dumbbell"></i>Loading...</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Log Session</h5>
+                <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Date</label>
+                    <input type="date" class="form-control" id="addDate">
+                </div>
+                <label class="form-label text-secondary small">Sets</label>
+                <div id="addSets"></div>
+                <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="window.addSetRow('addSets')"><i class="bi bi-plus me-1"></i>Add Set</button>
+                <div class="mt-3">
+                    <label class="form-label text-secondary small">Notes (optional)</label>
+                    <textarea class="form-control" id="addNotes" rows="2" placeholder="How did it feel?"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-accent px-4" onclick="window.saveSession()"><i class="bi bi-check-lg me-1"></i>Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold">Edit Session</h5>
+                <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editId">
+                <div class="mb-3">
+                    <label class="form-label text-secondary small">Date</label>
+                    <input type="date" class="form-control" id="editDate">
+                </div>
+                <label class="form-label text-secondary small">Sets</label>
+                <div id="editSets"></div>
+                <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="window.addSetRow('editSets')"><i class="bi bi-plus me-1"></i>Add Set</button>
+                <div class="mt-3">
+                    <label class="form-label text-secondary small">Notes</label>
+                    <textarea class="form-control" id="editNotes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-accent px-4" onclick="window.updateSession()"><i class="bi bi-check-lg me-1"></i>Update</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js';
+import {
+    getFirestore, collection, addDoc, getDocs,
+    deleteDoc, doc, updateDoc, setDoc, getDoc
+} from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+
+const app = initializeApp({
+    apiKey: "AIzaSyAXFGXQGTFdRlazzK_QmTWdSzuYGyNgmoI",
+    authDomain: "tracker-628fc.firebaseapp.com",
+    projectId: "tracker-628fc",
+    storageBucket: "tracker-628fc.firebasestorage.app",
+    messagingSenderId: "11574316672",
+    appId: "1:11574316672:web:1d1bfa319a852d8f706065"
+});
+const db = getFirestore(app);
+
+// ════════════════════════════════════════════════════════════
+// SCHEDULE — plan data
+// ════════════════════════════════════════════════════════════
+
+const EXERCISES = [
+    { id: 'warmup',  name: 'Warm-up',          detail: 'empty bar × 10, 30 kg × 5, –2.5 kg × 3' },
+    { id: 'bench',   name: 'Bench press',       detail: '3 × 10 reps' },
+    { id: 'rows',    name: 'Dumbbell rows',     detail: '3 × 10 each side' },
+    { id: 'ohp',     name: 'Overhead press',    detail: '3 × 8 reps' },
+    { id: 'dips',    name: 'Tricep dips',       detail: '3 × 10 reps' },
+    { id: 'stretch', name: 'Cool-down stretch', detail: 'chest & shoulders · 2 min' }
+];
+const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+const WEIGHTS = [40,40,42.5,42.5,45,45,47.5,47.5,50,50,52.5,52.5,55,55,57.5,57.5,60,60,60,60,60,60,60,60,60,60,60,60];
+
+function addDays(d,n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function isoDate(d) { return d.toISOString().slice(0,10); }
+function fmtDay(d) { return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; }
+
+// Build schedule
+const planSessions = [];
+let sCount = 0, cur = new Date(2026,2,25);
+while (cur <= new Date(2026,6,31)) {
+    const dow = cur.getDay();
+    if (dow===1||dow===4) {
+        const wk = Math.floor(sCount/2);
+        const weight = WEIGHTS[Math.min(wk, WEIGHTS.length-1)];
+        planSessions.push({ date: new Date(cur), key: isoDate(cur), week: wk, indexInWeek: sCount%2, weight, isGoal: weight>=60 });
+        sCount++;
+    }
+    cur = addDays(cur,1);
+}
+const weekMap = {};
+planSessions.forEach(s => { if (!weekMap[s.week]) weekMap[s.week]=[]; weekMap[s.week].push(s); });
+
+// State
+let planState = {};
+let uiState = { openWeeks:{}, openSessions:{} };
+let saveTimer = null;
+
+function loadUiState() {
+    try { const r=localStorage.getItem('bench-ui-v1'); if(r) uiState=JSON.parse(r); } catch {}
+}
+function saveUiState() { localStorage.setItem('bench-ui-v1', JSON.stringify(uiState)); }
+
+async function loadPlanState() {
+    const snap = await getDoc(doc(db,'planState','bench'));
+    if (snap.exists()) planState = snap.data().exercises || {};
+}
+
+function schedulePlanSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+        try {
+            await setDoc(doc(db,'planState','bench'), { exercises: planState });
+            setIndicator('saved ✓'); setTimeout(()=>setIndicator(''), 600);
+        } catch(e) { setIndicator('save error'); }
+    }, 300);
+}
+
+function setIndicator(msg) { const el=document.getElementById('save-indicator'); if(el) el.textContent=msg; }
+const exKey = (sk,eid) => sk+'__'+eid;
+const isSessionDone = sk => EXERCISES.every(ex => planState[exKey(sk,ex.id)]);
+
+function updatePlanStats() {
+    const sd = planSessions.filter(s=>isSessionDone(s.key)).length;
+    let ed = 0;
+    planSessions.forEach(s => EXERCISES.forEach(ex => { if(planState[exKey(s.key,ex.id)]) ed++; }));
+    const total=planSessions.length, te=total*EXERCISES.length;
+    document.getElementById('sessions-done').textContent = sd;
+    document.getElementById('exercises-done').textContent = ed;
+    document.getElementById('sessions-left').textContent = total-sd;
+    const pct = te>0?Math.round(ed/te*100):0;
+    document.getElementById('overall-pct').textContent = pct+'%';
+    document.getElementById('overall-bar').style.width = pct+'%';
+}
+
+function renderPlan() {
+    const container = document.getElementById('plan');
+    container.innerHTML = '';
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    Object.entries(weekMap).forEach(([wk, sess]) => {
+        const wkNum = parseInt(wk);
+        const weight = sess[0].weight, isGoal = weight>=60;
+        const exDone = sess.reduce((a,s)=>a+EXERCISES.filter(ex=>planState[exKey(s.key,ex.id)]).length, 0);
+        const exTotal = sess.length * EXERCISES.length;
+        const weekAllDone = sess.every(s=>isSessionDone(s.key));
+        const isCurrentWeek = sess.some(s=>{ const d=new Date(s.date); d.setHours(0,0,0,0); return Math.abs(d-today)<7*86400000; });
+        const isOpen = uiState.openWeeks[wkNum]!==undefined ? uiState.openWeeks[wkNum] : (isCurrentWeek||wkNum===0);
+
+        const block = document.createElement('div'); block.className='week-block';
+        const hdr = document.createElement('div'); hdr.className='week-header';
+        const d1=sess[0].date, d2=sess[sess.length-1].date;
+        const tagClass = weekAllDone?'tag-done':isGoal?'tag-goal':'tag-normal';
+        const wLabel = weight%1===0?weight+' kg':weight.toFixed(1)+' kg';
+
+        hdr.innerHTML = `
+            <span class="week-num">WK ${wkNum+1}</span>
+            <span class="week-title">${d1.getDate()} ${MONTHS[d1.getMonth()]} – ${d2.getDate()} ${MONTHS[d2.getMonth()]}</span>
+            <span class="weight-tag ${tagClass}">${wLabel}</span>
+            <span class="week-prog">${exDone}/${exTotal}</span>
+            <span class="chevron" style="transform:${isOpen?'rotate(180deg)':''}">▼</span>`;
+
+        const body = document.createElement('div'); body.className='week-body'+(isOpen?' open':'');
+        hdr.onclick = () => {
+            const o = body.classList.toggle('open');
+            hdr.querySelector('.chevron').style.transform = o?'rotate(180deg)':'';
+            uiState.openWeeks[wkNum]=o; saveUiState();
+        };
+
+        sess.forEach(s => {
+            const done = isSessionDone(s.key);
+            const exDoneCount = EXERCISES.filter(ex=>planState[exKey(s.key,ex.id)]).length;
+            const sd = new Date(s.date); sd.setHours(0,0,0,0);
+            const isToday = sd.getTime()===today.getTime();
+            const isSubOpen = uiState.openSessions[s.key]!==undefined ? uiState.openSessions[s.key] : (isToday||(isCurrentWeek&&s.indexInWeek===0&&!done));
+
+            const sesBlock = document.createElement('div'); sesBlock.className='session-block';
+            const sesHdr = document.createElement('div'); sesHdr.className='session-hdr'+(done?' all-done':'');
+            sesHdr.innerHTML = `
+                <div class="session-cb ${done?'checked':''}">
+                    <svg class="check-svg" width="11" height="8" viewBox="0 0 11 8" fill="none"><path d="M1 4L4 7L10 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="session-info">
+                    <div class="ses-name">${s.indexInWeek===0?'Session A':'Session B'}${s.isGoal?' 🎯':''}</div>
+                    <div class="ses-date">${isToday?'Today · '+exDoneCount+'/'+EXERCISES.length+' exercises':fmtDay(s.date)+' · '+exDoneCount+'/'+EXERCISES.length}</div>
+                </div>
+                <span class="sub-chev" style="transform:${isSubOpen?'rotate(90deg)':''}">▶</span>`;
+
+            sesHdr.querySelector('.session-cb').onclick = e => {
+                e.stopPropagation();
+                const allDone = isSessionDone(s.key);
+                EXERCISES.forEach(ex => { planState[exKey(s.key,ex.id)]=!allDone; });
+                schedulePlanSave(); renderPlan(); updatePlanStats();
+            };
+
+            const exList = document.createElement('div'); exList.className='exercises-list'+(isSubOpen?' open':'');
+            sesHdr.onclick = () => {
+                const o = exList.classList.toggle('open');
+                sesHdr.querySelector('.sub-chev').style.transform = o?'rotate(90deg)':'';
+                uiState.openSessions[s.key]=o; saveUiState();
+            };
+
+            EXERCISES.forEach(ex => {
+                const k=exKey(s.key,ex.id), isDone=!!planState[k];
+                const row = document.createElement('div'); row.className='exercise-row'+(isDone?' done':'');
+                row.innerHTML = `
+                    <div class="ex-cb ${isDone?'checked':''}">
+                        <svg class="ex-check" width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <span class="ex-name">${ex.name}</span>
+                    <span class="ex-detail">${ex.detail}</span>`;
+                row.onclick = e => {
+                    e.stopPropagation();
+                    planState[k]=!planState[k];
+                    schedulePlanSave(); renderPlan(); updatePlanStats();
+                };
+                exList.appendChild(row);
+            });
+
+            sesBlock.append(sesHdr, exList);
+            body.appendChild(sesBlock);
+        });
+
+        const wkBar = document.createElement('div'); wkBar.className='week-bar-wrap';
+        wkBar.innerHTML = `<div class="week-bar-track"><div class="week-bar-fill" style="width:${exTotal>0?Math.round(exDone/exTotal*100):0}%"></div></div>`;
+        body.appendChild(wkBar);
+        block.append(hdr,body);
+        container.appendChild(block);
+    });
+
+    updatePlanStats();
+}
+
+// ════════════════════════════════════════════════════════════
+// PROGRESS — session logging
+// ════════════════════════════════════════════════════════════
+
+let sessions = [];
+
+async function loadSessions() {
+    const snap = await getDocs(collection(db,'sessions'));
+    sessions = snap.docs.map(d=>({id:d.id,...d.data()}));
+    sessions.sort((a,b)=>new Date(a.date)-new Date(b.date));
+}
+async function addSessionDB(data) {
+    const ref = await addDoc(collection(db,'sessions'),data);
+    sessions.push({id:ref.id,...data});
+    sessions.sort((a,b)=>new Date(a.date)-new Date(b.date));
+}
+async function updateSessionDB(id,data) {
+    await updateDoc(doc(db,'sessions',id),data);
+    const i=sessions.findIndex(s=>s.id===id);
+    if(i!==-1) sessions[i]={id,...data};
+    sessions.sort((a,b)=>new Date(a.date)-new Date(b.date));
+}
+async function deleteSessionDB(id) {
+    await deleteDoc(doc(db,'sessions',id));
+    sessions=sessions.filter(s=>s.id!==id);
+}
+
+const e1rm    = (w,r) => r===1?w:Math.round(w*(1+r/30));
+const best1RM = s => Math.max(...s.sets.map(x=>e1rm(x.weight,x.reps)));
+const volume  = s => s.sets.reduce((t,x)=>t+x.weight*x.reps,0);
+const topW    = s => Math.max(...s.sets.map(x=>x.weight));
+
+function renderStats() {
+    if (!sessions.length) {
+        ['s-1rm','s-last'].forEach(id=>document.getElementById(id).textContent='—');
+        ['s-1rm-d','s-last-d'].forEach(id=>document.getElementById(id).textContent='no data');
+        document.getElementById('s-count').textContent='0';
+        document.getElementById('s-vol').textContent='0';
+        return;
+    }
+    let best=0,bestDate='';
+    sessions.forEach(s=>{const r=best1RM(s);if(r>best){best=r;bestDate=s.date;}});
+    document.getElementById('s-1rm').textContent=best+' kg';
+    document.getElementById('s-1rm-d').textContent=fmtDate(bestDate);
+    const last=sessions[sessions.length-1];
+    document.getElementById('s-last').textContent=topW(last)+' kg';
+    document.getElementById('s-last-d').textContent=fmtDate(last.date);
+    document.getElementById('s-count').textContent=sessions.length;
+    const vol=sessions.reduce((t,s)=>t+volume(s),0);
+    document.getElementById('s-vol').textContent=vol>=1000?(vol/1000).toFixed(1)+'t':vol+'';
+}
+
+let chart=null;
+function renderChart() {
+    const ctx=document.getElementById('chart').getContext('2d');
+    if(chart) chart.destroy();
+    chart=new Chart(ctx,{
+        type:'line',
+        data:{
+            labels:sessions.map(s=>fmtDate(s.date)),
+            datasets:[{
+                data:sessions.map(s=>best1RM(s)),
+                borderColor:'#ff6b35',backgroundColor:'rgba(255,107,53,.1)',
+                borderWidth:2.5,pointBackgroundColor:'#ff6b35',pointBorderColor:'#ff6b35',
+                pointRadius:5,pointHoverRadius:7,tension:.3,fill:true
+            }]
+        },
+        options:{
+            responsive:true,maintainAspectRatio:false,
+            plugins:{
+                legend:{display:false},
+                tooltip:{backgroundColor:'#1a1a2e',borderColor:'#2d2d44',borderWidth:1,titleColor:'#ff6b35',bodyColor:'#e0e0e0',callbacks:{label:c=>`Est. 1RM: ${c.raw} kg`}}
+            },
+            scales:{
+                x:{grid:{color:'#1f1f35'},ticks:{color:'#888',maxTicksLimit:8}},
+                y:{grid:{color:'#1f1f35'},ticks:{color:'#888',callback:v=>v+' kg'}}
+            }
+        }
+    });
+}
+
+function renderList() {
+    const el=document.getElementById('sessionList');
+    if(!sessions.length){
+        el.innerHTML=`<div class="empty-state"><i class="bi bi-dumbbell"></i><p class="mb-2">No sessions logged yet</p><button class="btn btn-accent btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">Log your first session</button></div>`;
+        return;
+    }
+    const globalBest=Math.max(...sessions.map(s=>best1RM(s)));
+    el.innerHTML=[...sessions].reverse().map(s=>{
+        const rm=best1RM(s),isPR=rm===globalBest;
+        const bestSet=s.sets.reduce((b,x)=>e1rm(x.weight,x.reps)>e1rm(b.weight,b.reps)?x:b);
+        const setsHtml=s.sets.map(x=>`<span class="set-badge${x===bestSet?' top':''}">${x.weight}kg×${x.reps}</span>`).join('');
+        const notesHtml=s.notes?`<div class="text-secondary small mt-2" style="font-style:italic">"${esc(s.notes)}"</div>`:'';
+        return `<div class="session-card">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div><span class="session-date">${fmtDate(s.date)}</span>${isPR?' <span class="pr-badge">PR</span>':''}</div>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="window.openEdit('${s.id}')"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="window.deleteSession('${s.id}')"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>
+            <div class="mb-1">${setsHtml}</div>
+            <div class="d-flex gap-3 mt-2">
+                <span class="small text-secondary"><i class="bi bi-trophy me-1" style="color:var(--accent)"></i>Est. 1RM: <strong class="text-light">${rm} kg</strong></span>
+                <span class="small text-secondary"><i class="bi bi-layers me-1"></i>Vol: <strong class="text-light">${volume(s)} kg</strong></span>
+            </div>${notesHtml}
+        </div>`;
+    }).join('');
+}
+
+function refreshProgress(){renderStats();renderChart();renderList();}
+
+// ── Set rows ──────────────────────────────────────────────────────
+window.addSetRow = function(containerId,weight='',reps='') {
+    const c=document.getElementById(containerId), n=c.children.length+1;
+    const d=document.createElement('div'); d.className='set-row';
+    d.innerHTML=`
+        <span class="set-num">S${n}</span>
+        <input type="number" class="form-control form-control-sm" placeholder="kg" min="0" step="0.5" value="${weight}" style="width:80px">
+        <span class="text-secondary">×</span>
+        <input type="number" class="form-control form-control-sm" placeholder="reps" min="1" value="${reps}" style="width:70px">
+        <button class="btn btn-sm btn-outline-danger ms-auto" onclick="this.closest('.set-row').remove();window.renumSets('${containerId}')"><i class="bi bi-x"></i></button>`;
+    c.appendChild(d);
+};
+
+window.renumSets = function(cid) {
+    document.getElementById(cid).querySelectorAll('.set-row').forEach((r,i)=>r.querySelector('.set-num').textContent=`S${i+1}`);
+};
+
+function getSets(cid) {
+    return [...document.getElementById(cid).querySelectorAll('.set-row')].flatMap(r=>{
+        const ins=r.querySelectorAll('input[type="number"]');
+        const w=parseFloat(ins[0].value),rep=parseInt(ins[1].value);
+        return(w>0&&rep>0)?[{weight:w,reps:rep}]:[];
+    });
+}
+
+document.getElementById('addModal').addEventListener('show.bs.modal',()=>{
+    document.getElementById('addDate').value=todayStr();
+    document.getElementById('addNotes').value='';
+    document.getElementById('addSets').innerHTML='';
+    window.addSetRow('addSets');window.addSetRow('addSets');window.addSetRow('addSets');
+});
+
+window.saveSession = async function() {
+    const date=document.getElementById('addDate').value,sets=getSets('addSets'),notes=document.getElementById('addNotes').value.trim();
+    if(!date||!sets.length){alert('Add a date and at least one valid set.');return;}
+    setLoading(true);
+    try{await addSessionDB({date,sets,notes});bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();refreshProgress();}
+    catch(e){showError('Could not save: '+e.message);}
+    setLoading(false);
+};
+
+window.openEdit = function(id) {
+    const s=sessions.find(x=>x.id===id);if(!s)return;
+    document.getElementById('editId').value=id;
+    document.getElementById('editDate').value=s.date;
+    document.getElementById('editNotes').value=s.notes||'';
+    document.getElementById('editSets').innerHTML='';
+    s.sets.forEach(x=>window.addSetRow('editSets',x.weight,x.reps));
+    new bootstrap.Modal(document.getElementById('editModal')).show();
+};
+
+window.updateSession = async function() {
+    const id=document.getElementById('editId').value,date=document.getElementById('editDate').value,sets=getSets('editSets'),notes=document.getElementById('editNotes').value.trim();
+    if(!date||!sets.length){alert('Add a date and at least one valid set.');return;}
+    setLoading(true);
+    try{await updateSessionDB(id,{date,sets,notes});bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();refreshProgress();}
+    catch(e){showError('Could not update: '+e.message);}
+    setLoading(false);
+};
+
+window.deleteSession = async function(id) {
+    if(!confirm('Delete this session?'))return;
+    setLoading(true);
+    try{await deleteSessionDB(id);refreshProgress();}
+    catch(e){showError('Could not delete: '+e.message);}
+    setLoading(false);
+};
+
+// ── Export / Import ───────────────────────────────────────────────
+window.exportData = function() {
+    const blob=new Blob([JSON.stringify({sessions,planState},null,2)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`tracker-backup-${todayStr()}.json`;a.click();
+};
+
+document.getElementById('importFile').addEventListener('change',async e=>{
+    const file=e.target.files[0];if(!file)return;
+    try{
+        const imported=JSON.parse(await file.text());
+        if(!Array.isArray(imported.sessions)){alert('Invalid backup file.');return;}
+        if(!confirm(`Import ${imported.sessions.length} sessions? This REPLACES all current data.`))return;
+        setLoading(true);
+        for(const s of [...sessions]) await deleteSessionDB(s.id);
+        for(const s of imported.sessions) await addSessionDB({date:s.date,sets:s.sets,notes:s.notes||''});
+        if(imported.planState){planState=imported.planState;await setDoc(doc(db,'planState','bench'),{exercises:planState});renderPlan();}
+        refreshProgress();alert('Imported!');
+    }catch(err){showError('Could not import: '+err.message);}
+    setLoading(false);e.target.value='';
+});
+
+// ── Tab switching ─────────────────────────────────────────────────
+window.switchTab = function(tab,btn) {
+    document.getElementById('tab-schedule').style.display=tab==='schedule'?'block':'none';
+    document.getElementById('tab-progress').style.display=tab==='progress'?'block':'none';
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+};
+
+// ── Helpers ───────────────────────────────────────────────────────
+const todayStr = () => new Date().toISOString().split('T')[0];
+const fmtDate  = d => new Date(d+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+const esc      = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function setLoading(show){document.getElementById('loadingOverlay').style.display=show?'flex':'none';}
+function showError(msg){const el=document.getElementById('errorBanner');el.textContent='⚠ '+msg;el.classList.remove('d-none');setTimeout(()=>el.classList.add('d-none'),6000);}
+
+// ── Boot ──────────────────────────────────────────────────────────
+try {
+    setLoading(true);
+    loadUiState();
+    await Promise.all([loadPlanState(), loadSessions()]);
+    renderPlan();
+    refreshProgress();
+} catch(e) {
+    showError('Could not load data. Check Firestore rules or internet connection.');
+}
+setLoading(false);
+</script>
+</body>
+</html>
