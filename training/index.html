@@ -160,6 +160,9 @@
         <button class="tab-btn" onclick="window.switchTab('progress',this)">
             <i class="bi bi-graph-up me-1"></i>Progress
         </button>
+        <button class="tab-btn" onclick="window.switchTab('running',this)">
+            <i class="bi bi-person-walking me-1"></i>Running
+        </button>
     </div>
 
     <div id="errorBanner" class="error-banner d-none"></div>
@@ -224,6 +227,21 @@
             <div class="panel-title"><i class="bi bi-clock-history me-2" style="color:var(--accent)"></i>Session History</div>
             <div id="sessionList"><div class="empty-state"><i class="bi bi-dumbbell"></i>Loading...</div></div>
         </div>
+    </div>
+
+    <!-- ════ RUNNING TAB ════ -->
+    <div id="tab-running" style="display:none">
+        <div class="sched-stats">
+            <div class="sched-pill">Runs done: <strong id="r-runs-done">0</strong></div>
+            <div class="sched-pill">km logged: <strong id="r-km-done">0</strong></div>
+            <div class="sched-pill">Days to race: <strong id="r-days-left">—</strong></div>
+        </div>
+        <div class="overall-bar-wrap">
+            <div class="overall-bar-label"><span>Race readiness · 20 km on 31 May</span><span id="r-overall-pct">0%</span></div>
+            <div class="bar-track"><div class="bar-fill" id="r-overall-bar" style="width:0%;background:var(--blue)"></div></div>
+        </div>
+        <div class="save-row" id="r-save-indicator"></div>
+        <div id="run-plan"></div>
     </div>
 </div>
 
@@ -658,6 +676,227 @@ window.deleteSession = async function(id) {
     setLoading(false);
 };
 
+// ════════════════════════════════════════════════════════════
+// RUNNING TAB
+// ════════════════════════════════════════════════════════════
+
+const RUN_PLAN = [
+    { id:'w1', label:'Week 1', note:'', runs:[
+        {id:'w1r1', date:'2026-03-30', km:6,  pace:'5:15–5:30/km'},
+        {id:'w1r2', date:'2026-04-02', km:8,  pace:'5:15–5:30/km'},
+    ]},
+    { id:'w2', label:'Week 2', note:'', runs:[
+        {id:'w2r1', date:'2026-04-06', km:7,  pace:'5:10–5:25/km'},
+        {id:'w2r2', date:'2026-04-09', km:10, pace:'5:15–5:30/km'},
+    ]},
+    { id:'w3', label:'Week 3', note:'recovery', runs:[
+        {id:'w3r1', date:'2026-04-13', km:5,  pace:'5:20–5:40/km'},
+        {id:'w3r2', date:'2026-04-16', km:8,  pace:'5:20–5:40/km'},
+    ]},
+    { id:'w4', label:'Week 4', note:'', runs:[
+        {id:'w4r1', date:'2026-04-20', km:8,  pace:'5:10–5:25/km'},
+        {id:'w4r2', date:'2026-04-23', km:13, pace:'5:15–5:30/km'},
+    ]},
+    { id:'w5', label:'Week 5', note:'', runs:[
+        {id:'w5r1', date:'2026-04-27', km:9,  pace:'5:10–5:25/km'},
+        {id:'w5r2', date:'2026-04-30', km:15, pace:'5:15–5:30/km'},
+    ]},
+    { id:'w6', label:'Week 6', note:'recovery', runs:[
+        {id:'w6r1', date:'2026-05-04', km:6,  pace:'5:20–5:40/km'},
+        {id:'w6r2', date:'2026-05-07', km:10, pace:'5:20–5:40/km'},
+    ]},
+    { id:'w7', label:'Week 7', note:'', runs:[
+        {id:'w7r1', date:'2026-05-11', km:10, pace:'5:10–5:25/km'},
+        {id:'w7r2', date:'2026-05-14', km:17, pace:'5:15–5:30/km'},
+    ]},
+    { id:'w8', label:'Week 8', note:'taper', runs:[
+        {id:'w8r1', date:'2026-05-18', km:7,  pace:'5:10–5:20/km'},
+        {id:'w8r2', date:'2026-05-21', km:12, pace:'5:10–5:20/km'},
+    ]},
+    { id:'w9', label:'Week 9', note:'taper', runs:[
+        {id:'w9r1', date:'2026-05-25', km:5,  pace:'easy'},
+    ]},
+];
+
+let runState = {};
+let runUiState = { openWeeks:{}, openRuns:{} };
+let runSaveTimer = null;
+
+function loadRunUiState() {
+    try { const r=localStorage.getItem('run-ui-v1'); if(r) runUiState=JSON.parse(r); } catch {}
+}
+function saveRunUiState() { localStorage.setItem('run-ui-v1', JSON.stringify(runUiState)); }
+
+async function loadRunState() {
+    const snap = await getDoc(doc(db,'planState','running'));
+    if (snap.exists()) runState = snap.data().runs || {};
+}
+
+function scheduleRunSave() {
+    clearTimeout(runSaveTimer);
+    runSaveTimer = setTimeout(async () => {
+        try {
+            await setDoc(doc(db,'planState','running'), { runs: runState });
+            setRunIndicator('saved ✓'); setTimeout(()=>setRunIndicator(''), 600);
+        } catch(e) { setRunIndicator('save error'); }
+    }, 300);
+}
+function setRunIndicator(msg) { const el=document.getElementById('r-save-indicator'); if(el) el.textContent=msg; }
+
+function calcPace(km, timeStr) {
+    if (!km||!timeStr) return '—';
+    const parts = timeStr.split(':');
+    if (parts.length!==2) return '—';
+    const totalSec = parseInt(parts[0])*60 + parseInt(parts[1]);
+    const sPerKm = totalSec / km;
+    return `${Math.floor(sPerKm/60)}:${Math.round(sPerKm%60).toString().padStart(2,'0')}`;
+}
+
+function renderRunPlan() {
+    const container = document.getElementById('run-plan');
+    container.innerHTML = '';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const RACE_DATE = new Date('2026-05-31T00:00:00');
+    const daysLeft = Math.max(0, Math.ceil((RACE_DATE - today) / 86400000));
+
+    let totalDone = 0, totalKmActual = 0;
+    RUN_PLAN.forEach(w => w.runs.forEach(r => {
+        const rs = runState[r.id] || {};
+        if (rs.done) { totalDone++; totalKmActual += parseFloat(rs.actualKm||0)||r.km; }
+    }));
+    if (runState['race']?.done) totalDone++;
+
+    document.getElementById('r-runs-done').textContent = totalDone;
+    document.getElementById('r-km-done').textContent = Math.round(totalKmActual);
+    document.getElementById('r-days-left').textContent = daysLeft;
+    const totalRuns = RUN_PLAN.reduce((t,w)=>t+w.runs.length,0)+1;
+    const pct = Math.round(totalDone/totalRuns*100);
+    document.getElementById('r-overall-pct').textContent = pct+'%';
+    document.getElementById('r-overall-bar').style.width = pct+'%';
+
+    RUN_PLAN.forEach(w => {
+        const weekDone = w.runs.filter(r=>runState[r.id]?.done).length;
+        const isAllDone = weekDone===w.runs.length;
+        const isCurrentWeek = w.runs.some(r=>{ const d=new Date(r.date+'T00:00:00'); d.setHours(0,0,0,0); return Math.abs(d-today)<7*86400000; });
+        const isOpen = runUiState.openWeeks[w.id]!==undefined ? runUiState.openWeeks[w.id] : (isCurrentWeek||w.id==='w1');
+
+        const block = document.createElement('div'); block.className='week-block';
+        const hdr = document.createElement('div'); hdr.className='week-header';
+        const totalKm = w.runs.reduce((t,r)=>t+r.km,0);
+        const noteBadge = w.note ? `<span class="weight-tag ${w.note==='recovery'?'tag-normal':'tag-goal'}" style="font-size:10px;margin-left:6px">${w.note}</span>` : '';
+        const doneBadge = isAllDone ? '<span class="weight-tag tag-done" style="font-size:10px;margin-left:4px">done</span>' : '';
+
+        hdr.innerHTML = `
+            <span class="week-num">${w.label}</span>
+            <span class="week-title" style="flex:1">${totalKm} km ${noteBadge}${doneBadge}</span>
+            <span class="week-prog">${weekDone}/${w.runs.length}</span>
+            <span class="chevron" style="transform:${isOpen?'rotate(180deg)':''}">▼</span>`;
+
+        const body = document.createElement('div'); body.className='week-body'+(isOpen?' open':'');
+        hdr.onclick = () => {
+            const o = body.classList.toggle('open');
+            hdr.querySelector('.chevron').style.transform = o?'rotate(180deg)':'';
+            runUiState.openWeeks[w.id]=o; saveRunUiState();
+        };
+
+        w.runs.forEach(r => {
+            const rs = runState[r.id] || {};
+            const isDone = !!rs.done;
+            const rd = new Date(r.date+'T00:00:00'); rd.setHours(0,0,0,0);
+            const isToday = rd.getTime()===today.getTime();
+            const isExpanded = !!(runUiState.openRuns?.[r.id]);
+            const actualLabel = isDone && rs.actualKm ? ` · actual: ${rs.actualKm}km${rs.actualTime?' in '+rs.actualTime:''}` : '';
+
+            const runBlock = document.createElement('div'); runBlock.className='session-block';
+            const runHdr = document.createElement('div'); runHdr.className='session-hdr'+(isDone?' all-done':'');
+            runHdr.innerHTML = `
+                <div class="session-cb ${isDone?'checked':''}" style="${isDone?'background:var(--blue);border-color:var(--blue);':''}cursor:pointer">
+                    <svg class="check-svg" width="11" height="8" viewBox="0 0 11 8" fill="none"><path d="M1 4L4 7L10 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="session-info">
+                    <div class="ses-name">${isToday?'<strong style="color:var(--blue)">Today</strong>':fmtDay(rd)} &middot; ${r.km} km${actualLabel}</div>
+                    <div class="ses-date">${r.pace} target pace${isDone&&rs.actualKm&&rs.actualTime?' · '+calcPace(parseFloat(rs.actualKm),rs.actualTime)+'/km actual':''}</div>
+                </div>
+                <span class="sub-chev" style="transform:${isExpanded?'rotate(90deg)':''}">▶</span>`;
+
+            runHdr.querySelector('.session-cb').onclick = e => {
+                e.stopPropagation();
+                if (!runState[r.id]) runState[r.id]={};
+                runState[r.id].done = !runState[r.id].done;
+                scheduleRunSave(); renderRunPlan();
+            };
+
+            const logDiv = document.createElement('div');
+            logDiv.style.cssText = `display:${isExpanded?'block':'none'};padding:.75rem 1rem .75rem 48px;border-top:1px solid var(--card-border);background:#0f0f1a`;
+            logDiv.innerHTML = `
+                <div style="font-size:12px;color:#888;margin-bottom:.5rem">Log actual run</div>
+                <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                    <input type="number" placeholder="km" step="0.01" min="0" value="${rs.actualKm||''}"
+                        class="form-control form-control-sm" data-field="km" style="width:75px">
+                    <span style="color:#666;font-size:.85rem">in</span>
+                    <input type="text" placeholder="mm:ss" value="${rs.actualTime||''}"
+                        class="form-control form-control-sm" data-field="time" style="width:75px">
+                    <button class="btn btn-sm" style="background:var(--blue);color:#fff;border:none"
+                        onclick="window.saveRunLog('${r.id}',this)">Save</button>
+                </div>`;
+
+            runHdr.onclick = () => {
+                const nowOpen = logDiv.style.display==='none';
+                logDiv.style.display = nowOpen?'block':'none';
+                runHdr.querySelector('.sub-chev').style.transform = nowOpen?'rotate(90deg)':'';
+                if (!runUiState.openRuns) runUiState.openRuns={};
+                runUiState.openRuns[r.id]=nowOpen; saveRunUiState();
+            };
+
+            runBlock.append(runHdr, logDiv);
+            body.appendChild(runBlock);
+        });
+
+        const wkBar = document.createElement('div'); wkBar.className='week-bar-wrap';
+        wkBar.innerHTML=`<div class="week-bar-track"><div class="week-bar-fill" style="background:var(--blue);width:${w.runs.length>0?Math.round(weekDone/w.runs.length*100):0}%"></div></div>`;
+        body.appendChild(wkBar);
+        block.append(hdr,body);
+        container.appendChild(block);
+    });
+
+    // Race day
+    const raceDone = !!runState['race']?.done;
+    const raceState = runState['race']||{};
+    const raceBlock = document.createElement('div');
+    raceBlock.className='week-block';
+    raceBlock.style.borderColor = raceDone?'var(--green)':'var(--amber)';
+    raceBlock.style.marginTop='16px';
+    raceBlock.innerHTML=`
+        <div class="week-header" style="cursor:default">
+            <span class="week-num" style="color:var(--amber)">RACE</span>
+            <span class="week-title" style="flex:1;font-weight:700">31 May 2026 &middot; 20 km 🎯</span>
+            <span class="weight-tag tag-goal">sub 5:00/km</span>
+            <div class="session-cb ${raceDone?'checked':''}" style="${raceDone?'background:var(--green);border-color:var(--green);':''}cursor:pointer;margin-left:8px" onclick="window.toggleRaceDone()">
+                <svg class="check-svg" width="11" height="8" viewBox="0 0 11 8" fill="none"><path d="M1 4L4 7L10 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+        </div>
+        ${raceDone?`<div style="padding:.5rem 1rem 1rem;font-size:13px;color:var(--green)">🎉 Finished! ${raceState.actualKm||20}km${raceState.actualTime?' in '+raceState.actualTime+' ('+calcPace(raceState.actualKm||20,raceState.actualTime)+'/km)':''}</div>`:''}`;
+    container.appendChild(raceBlock);
+}
+
+window.saveRunLog = function(runId, btn) {
+    const row = btn.closest('div');
+    const km = parseFloat(row.querySelector('[data-field="km"]').value);
+    const time = row.querySelector('[data-field="time"]').value.trim();
+    if (!km) { alert('Enter distance in km.'); return; }
+    if (!runState[runId]) runState[runId]={};
+    runState[runId].actualKm = km;
+    runState[runId].actualTime = time;
+    runState[runId].done = true;
+    scheduleRunSave(); renderRunPlan();
+};
+
+window.toggleRaceDone = function() {
+    if (!runState['race']) runState['race']={};
+    runState['race'].done = !runState['race'].done;
+    scheduleRunSave(); renderRunPlan();
+};
+
 // ── Export / Import ───────────────────────────────────────────────
 window.exportData = function() {
     const blob=new Blob([JSON.stringify({sessions,planState},null,2)],{type:'application/json'});
@@ -683,6 +922,7 @@ document.getElementById('importFile').addEventListener('change',async e=>{
 window.switchTab = function(tab,btn) {
     document.getElementById('tab-schedule').style.display=tab==='schedule'?'block':'none';
     document.getElementById('tab-progress').style.display=tab==='progress'?'block':'none';
+    document.getElementById('tab-running').style.display=tab==='running'?'block':'none';
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
 };
@@ -698,9 +938,11 @@ function showError(msg){const el=document.getElementById('errorBanner');el.textC
 try {
     setLoading(true);
     loadUiState();
-    await Promise.all([loadPlanState(), loadSessions()]);
+    loadRunUiState();
+    await Promise.all([loadPlanState(), loadSessions(), loadRunState()]);
     renderPlan();
     refreshProgress();
+    renderRunPlan();
 } catch(e) {
     showError('Could not load data. Check Firestore rules or internet connection.');
 }
