@@ -893,9 +893,8 @@ try {
     setLoading(true);
     loadUiState();
     loadRunUiState();
-    await Promise.all([loadPlanState(), loadSessions(), loadRunState()]);
+    await Promise.all([loadPlanState(), loadRunState()]);
     renderPlan();
-    refreshProgress();
     renderRunPlan();
 } catch(e) {
     showError('Could not load data. Check Firestore rules or internet connection.');
