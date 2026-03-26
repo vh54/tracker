@@ -61,6 +61,7 @@
         .flat-chev { color: #666; font-size: 10px; transition: transform .2s; }
         .flat-body { display: none; }
         .flat-body.open { display: block; }
+        .moved-badge { font-family: monospace; font-size: 10px; color: var(--amber); background: var(--amber-bg); border-radius: 4px; padding: 1px 5px; margin-left: 4px; }
 
         /* ── Exercise rows (bench) ── */
         .exercise-row { display: flex; align-items: center; padding: 9px 14px; gap: 10px; cursor: pointer; border-top: 1px solid var(--card-border); transition: background .1s; }
@@ -74,7 +75,7 @@
         .ex-detail { font-family: monospace; font-size: 11px; color: #666; }
 
         /* ── Run checkbox ── */
-        .run-cb { width: 20px; height: 20px; border: 1.5px solid var(--card-border); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--card-bg); transition: background .15s, border-color .15s; cursor: pointer; flex-shrink: 0; }
+        .run-cb { width: 20px; height: 20px; border: 1.5px solid var(--card-border); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--card-bg); transition: background .15s, border-color .15s; cursor: pointer; }
         .run-cb.checked { background: var(--blue); border-color: var(--blue); }
         .run-check { display: none; }
         .run-cb.checked .run-check { display: block; }
@@ -101,6 +102,8 @@
         .pill-custom { background: var(--amber-bg); color: var(--amber); display: inline-flex; align-items: center; gap: 4px; }
         .pill-del { background: none; border: none; color: inherit; padding: 0; line-height: 1; cursor: pointer; font-size: .7rem; opacity: .65; }
         .pill-del:hover { opacity: 1; }
+        .pill-move { background: none; border: none; color: inherit; padding: 0 0 0 4px; line-height: 1; cursor: pointer; font-size: .7rem; opacity: .55; vertical-align: middle; }
+        .pill-move:hover { opacity: 1; }
 
         .add-event-area { margin-top: 6px; }
         .add-event-btn { font-size: .75rem; color: #555; background: none; border: 1px dashed #333; border-radius: 6px; padding: 2px 9px; cursor: pointer; transition: color .15s, border-color .15s; }
@@ -111,6 +114,12 @@
         .event-save-btn { background: var(--accent); border: none; color: #fff; border-radius: 6px; padding: 3px 10px; font-size: .8rem; cursor: pointer; font-weight: 600; flex-shrink: 0; }
         .event-cancel-btn { background: none; border: none; color: #555; padding: 0 2px; cursor: pointer; font-size: 1rem; line-height: 1; }
         .event-cancel-btn:hover { color: #aaa; }
+
+        /* ── Reschedule date input ── */
+        .reschedule-row { display: flex; gap: 5px; align-items: center; margin-top: 5px; }
+        .reschedule-inp { background: #111128; border: 1px solid var(--amber); color: #e0e0e0; border-radius: 6px; padding: 2px 6px; font-size: .75rem; outline: none; width: 135px; }
+        .reschedule-cancel { background: none; border: none; color: #555; cursor: pointer; font-size: .9rem; padding: 0 2px; }
+        .reschedule-cancel:hover { color: #aaa; }
 
         /* ── Misc ── */
         .spinner-overlay { position: fixed; inset: 0; background: rgba(15,15,26,.75); display: flex; align-items: center; justify-content: center; z-index: 9999; }
@@ -186,7 +195,7 @@
             <div class="stat-pill">Remaining: <strong id="b-sessions-left">0</strong></div>
         </div>
         <div class="prog-bar-wrap">
-            <div class="prog-bar-label"><span>Bench progress · goal 80 kg</span><span id="b-overall-pct">0%</span></div>
+            <div class="prog-bar-label"><span>Bench progress · goal 100 kg</span><span id="b-overall-pct">0%</span></div>
             <div class="bar-track"><div class="bar-fill" id="b-overall-bar" style="width:0%;background:var(--green)"></div></div>
         </div>
         <div class="save-row" id="b-save-indicator"></div>
@@ -213,14 +222,25 @@ const db = getFirestore(app);
 // HELPERS (defined first — used in data setup below)
 // ═══════════════════════════════════════════════════
 
-const MONTHS    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const DAYS_SH   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const DAYS_LNG  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYS_SH  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAYS_LNG = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+// Weight of the bar — added to all displayed bench weights
+const BAR = 20;
 
 function isoDate(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
+function localDate(iso) {
+    // Parse YYYY-MM-DD as local date (not UTC)
+    const [y,m,d] = iso.split('-').map(Number);
+    const dt = new Date(y, m-1, d, 0,0,0,0);
+    return dt;
+}
 function fmtDay(d) { return `${DAYS_SH[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; }
+function wLabel(w) { const t = w + BAR; return t%1===0 ? t+' kg' : t.toFixed(1)+' kg'; }
+
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
 function setLoading(show) { document.getElementById('loadingOverlay').style.display = show?'flex':'none'; }
@@ -245,12 +265,14 @@ function calcPace(km, timeStr) {
 // ═══════════════════════════════════════════════════
 
 const EXERCISES = [
-    { id: 'bench',    name: 'Bench press',    detail: w => `3 × 10 · ${w} kg` },
+    { id: 'bench',    name: 'Bench press',    detail: w => `3 × 10 · ${wLabel(w)}` },
     { id: 'rows',     name: 'Dumbbell rows',  detail: () => '3 × 10 each side · 10–12 kg p/side' },
     { id: 'shoulder', name: 'Shoulder press', detail: () => '3 × 8 · 20–25 kg' },
     { id: 'dips',     name: 'Tricep dips',    detail: () => '3 × 10 · bodyweight' },
 ];
 
+// Plate weights (bar not included). Display adds BAR.
+// Goal: 80 kg plates + 20 kg bar = 100 kg total
 const WEIGHTS = [40,40,42.5,42.5,45,45,47.5,47.5,50,50,52.5,52.5,55,55,57.5,57.5,60,60,62.5,62.5,65,65,67.5,67.5,70,70,72.5,72.5,75,75,77.5,77.5,80,80,80];
 
 // Build bench sessions (Mon + Thu, 25 Mar → 31 Jul 2026)
@@ -270,7 +292,7 @@ const planSessions = [];
                 week: wk,
                 indexInWeek: sCount%2,
                 weight,
-                isGoal: weight>=80
+                isGoal: weight >= 80   // plate goal = 80 → total 100 kg
             });
             sCount++;
         }
@@ -303,15 +325,22 @@ const allRuns = [
 // STATE
 // ═══════════════════════════════════════════════════
 
-let planState      = {};   // bench: { "2026-03-25__bench": true, … }
-let runState       = {};   // run:   { "w1r1": { done, actualKm, actualTime }, … }
-let scheduleEvents = {};   // sched: { "2026-03-30": ["event text", …], … }
+let planState      = {};   // bench exercise checks
+let runState       = {};   // run completions + logs
+let scheduleEvents = {};   // custom events per date
+let dateOverrides  = { bench:{}, runs:{} };
+                           // bench: { originalKey: newDateISO }
+                           // runs:  { runId: newDateISO }
 
-let weekOffset     = 0;
-let benchOpen      = {};   // { sessionKey: bool }
-let runOpen        = {};   // { runId: bool }
+let weekOffset = 0;
+let benchOpen  = {};       // { sessionKey: bool }
+let runOpen    = {};       // { runId: bool }
 
-let planSaveTimer = null, runSaveTimer = null, schedSaveTimer = null;
+let planSaveTimer=null, runSaveTimer=null, schedSaveTimer=null, overSaveTimer=null;
+
+// ── Effective date helpers ────────────────────────
+function sessEffDate(s) { return dateOverrides.bench[s.key] || s.key; }
+function runEffDate(r)  { return dateOverrides.runs[r.id]  || r.date; }
 
 // ═══════════════════════════════════════════════════
 // FIREBASE
@@ -328,6 +357,14 @@ async function loadRunState() {
 async function loadScheduleEvents() {
     const snap = await getDoc(doc(db,'planState','schedule'));
     if (snap.exists()) scheduleEvents = snap.data().events || {};
+}
+async function loadOverrides() {
+    const snap = await getDoc(doc(db,'planState','overrides'));
+    if (snap.exists()) {
+        const d = snap.data();
+        dateOverrides.bench = d.bench || {};
+        dateOverrides.runs  = d.runs  || {};
+    }
 }
 
 function savePlan() {
@@ -357,6 +394,66 @@ function saveSched() {
         } catch(e) { setIndicator('sched-save-indicator','save error'); }
     }, 300);
 }
+function saveOverrides() {
+    clearTimeout(overSaveTimer);
+    overSaveTimer = setTimeout(async () => {
+        try {
+            await setDoc(doc(db,'planState','overrides'), dateOverrides);
+        } catch(e) { /* silent */ }
+    }, 300);
+}
+
+// ═══════════════════════════════════════════════════
+// RESCHEDULE
+// ═══════════════════════════════════════════════════
+
+// Show inline date input on a pill when "↔" is clicked.
+// areaId = the <div id="reschedule-area-XYZ"> directly after the pill parent
+window.startReschedule = function(e, type, key, currentDate) {
+    e.stopPropagation();
+    // Remove any other open reschedule row
+    document.querySelectorAll('.reschedule-row').forEach(el => el.remove());
+
+    const pill = e.target.closest('.pill');
+    if (!pill) return;
+
+    const row = document.createElement('div');
+    row.className = 'reschedule-row';
+    row.innerHTML = `
+        <span style="font-size:.72rem;color:var(--amber)">Move to:</span>
+        <input class="reschedule-inp" type="date" value="${currentDate}">
+        <button class="reschedule-cancel" title="Cancel">✕</button>`;
+
+    // Insert after the activity-pills container
+    const pillsContainer = pill.closest('.activity-pills');
+    if (pillsContainer && pillsContainer.parentNode) {
+        pillsContainer.parentNode.insertBefore(row, pillsContainer.nextSibling);
+    } else {
+        pill.after(row);
+    }
+
+    const inp = row.querySelector('input');
+    const cancelBtn = row.querySelector('.reschedule-cancel');
+
+    inp.onchange = () => {
+        const newDate = inp.value;
+        row.remove();
+        if (!newDate) return;
+        if (type === 'bench') {
+            if (newDate === key) delete dateOverrides.bench[key];
+            else dateOverrides.bench[key] = newDate;
+        } else {
+            if (newDate === currentDate) delete dateOverrides.runs[key];
+            else dateOverrides.runs[key] = newDate;
+        }
+        saveOverrides();
+        window.renderSchedule();
+        renderBench();
+        renderRun();
+    };
+    cancelBtn.onclick = () => row.remove();
+    inp.focus();
+};
 
 // ═══════════════════════════════════════════════════
 // SCHEDULE TAB
@@ -365,15 +462,15 @@ function saveSched() {
 function getWeekDates(offset=0) {
     const today = new Date(); today.setHours(0,0,0,0);
     const dow = today.getDay();
-    const diff = dow===0 ? -6 : 1-dow;           // shift to Monday
+    const diff = dow===0 ? -6 : 1-dow;
     const monday = new Date(today); monday.setDate(today.getDate()+diff+offset*7);
     return Array.from({length:7}, (_,i) => {
         const d = new Date(monday); d.setDate(monday.getDate()+i); d.setHours(0,0,0,0); return d;
     });
 }
 
-window.navWeek  = function(dir) { weekOffset += dir; renderSchedule(); };
-window.goToday  = function()    { weekOffset = 0;    renderSchedule(); };
+window.navWeek  = function(dir) { weekOffset += dir; window.renderSchedule(); };
+window.goToday  = function()    { weekOffset = 0;    window.renderSchedule(); };
 
 window.renderSchedule = function() {
     const today = new Date(); today.setHours(0,0,0,0);
@@ -391,23 +488,31 @@ window.renderSchedule = function() {
         const isToday = d.getTime()===today.getTime();
         const isPast  = d < today;
 
-        const benchSess = planSessions.find(s => s.key===iso);
-        const run       = allRuns.find(r => r.date===iso);
-        const events    = scheduleEvents[iso] || [];
+        // Sessions/runs whose effective date falls on this day
+        const benchSessions = planSessions.filter(s => sessEffDate(s)===iso);
+        const runs = allRuns.filter(r => runEffDate(r)===iso);
+        const events = scheduleEvents[iso] || [];
 
         const card = document.createElement('div');
         card.className = 'day-card'+(isToday?' is-today':(!isToday&&isPast?' is-past':''));
 
         let pillsHtml = '';
-        if (benchSess) {
-            const wLabel = benchSess.weight%1===0?benchSess.weight+' kg':benchSess.weight.toFixed(1)+' kg';
-            const done = EXERCISES.every(ex => planState[`${benchSess.key}__${ex.id}`]);
-            pillsHtml += `<span class="pill pill-bench">${done?'✓ ':''}<i class="bi bi-dumbbell"></i> Bench ${wLabel}</span>`;
-        }
-        if (run) {
-            const rs = runState[run.id]||{};
-            pillsHtml += `<span class="pill pill-run">${rs.done?'✓ ':''}<i class="bi bi-person-running"></i> Run ${run.km} km</span>`;
-        }
+        benchSessions.forEach(s => {
+            const done = EXERCISES.every(ex => planState[`${s.key}__${ex.id}`]);
+            const moved = s.key !== iso;
+            pillsHtml += `<span class="pill pill-bench">
+                ${done?'✓ ':''}<i class="bi bi-dumbbell"></i> Bench ${wLabel(s.weight)}${moved?'<span class="moved-badge">moved</span>':''}
+                <button class="pill-move" onclick="window.startReschedule(event,'bench','${s.key}','${iso}')" title="Move to another date">↔</button>
+            </span>`;
+        });
+        runs.forEach(r => {
+            const rs = runState[r.id]||{};
+            const moved = r.date !== iso;
+            pillsHtml += `<span class="pill pill-run">
+                ${rs.done?'✓ ':''}<i class="bi bi-person-running"></i> Run ${r.km} km${moved?'<span class="moved-badge">moved</span>':''}
+                <button class="pill-move" onclick="window.startReschedule(event,'run','${r.id}','${iso}')" title="Move to another date">↔</button>
+            </span>`;
+        });
         events.forEach((ev, idx) => {
             pillsHtml += `<span class="pill pill-custom">${esc(ev)}<button class="pill-del" onclick="window.deleteEvent('${iso}',${idx})" title="Remove">×</button></span>`;
         });
@@ -486,16 +591,21 @@ function renderRun() {
     const container = document.getElementById('run-list');
     container.innerHTML = '';
 
-    allRuns.forEach(r => {
+    // Sort by effective date
+    const sorted = [...allRuns].sort((a,b) => runEffDate(a).localeCompare(runEffDate(b)));
+
+    sorted.forEach(r => {
         const rs = runState[r.id]||{};
         const isDone = !!rs.done;
-        const rd = new Date(r.date+'T00:00:00'); rd.setHours(0,0,0,0);
+        const effIso = runEffDate(r);
+        const rd = localDate(effIso);
         const isToday = rd.getTime()===today.getTime();
         const isPast  = rd < today;
+        const isMoved = effIso !== r.date;
         const isOpen  = !!runOpen[r.id];
 
-        const actualLabel  = isDone&&rs.actualKm ? ` · ${rs.actualKm} km${rs.actualTime?' in '+rs.actualTime:''}` : '';
-        const paceActual   = isDone&&rs.actualKm&&rs.actualTime
+        const actualLabel = isDone&&rs.actualKm ? ` · ${rs.actualKm} km${rs.actualTime?' in '+rs.actualTime:''}` : '';
+        const paceActual  = isDone&&rs.actualKm&&rs.actualTime
             ? `<span style="color:var(--blue);margin-left:8px">${calcPace(parseFloat(rs.actualKm),rs.actualTime)}/km actual</span>` : '';
 
         const row = document.createElement('div');
@@ -506,7 +616,7 @@ function renderRun() {
             <div class="run-cb ${isDone?'checked':''}" onclick="event.stopPropagation();window.toggleRun('${r.id}')">
                 <svg class="run-check" width="11" height="8" viewBox="0 0 11 8" fill="none"><path d="M1 4L4 7L10 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
-            <div class="flat-date">${isToday?'<span style="color:var(--accent)">Today</span>':fmtDay(rd)}</div>
+            <div class="flat-date">${isToday?'<span style="color:var(--accent)">Today</span>':fmtDay(rd)}${isMoved?'<span class="moved-badge">↔</span>':''}</div>
             <div class="flat-title">${r.km} km${actualLabel}</div>
             <span class="flat-tag" style="background:var(--blue-bg);color:var(--blue)">${r.pace}</span>
             <span class="flat-chev" style="transform:${isOpen?'rotate(180deg)':''}">▼</span>`;
@@ -605,23 +715,27 @@ function renderBench() {
     const container = document.getElementById('bench-list');
     container.innerHTML = '';
 
+    // Sort by effective date
+    const sorted = [...planSessions].sort((a,b) => sessEffDate(a).localeCompare(sessEffDate(b)));
+
     // First non-done upcoming session
-    const nextKey = planSessions.find(s => {
-        const d = new Date(s.date); d.setHours(0,0,0,0);
-        return d >= today && !sessionDone(s.key);
+    const nextKey = sorted.find(s => {
+        const effD = localDate(sessEffDate(s)); effD.setHours(0,0,0,0);
+        return effD >= today && !sessionDone(s.key);
     })?.key;
 
-    planSessions.forEach(s => {
-        const sd    = new Date(s.date); sd.setHours(0,0,0,0);
-        const isToday = sd.getTime()===today.getTime();
-        const isPast  = sd < today;
-        const done    = sessionDone(s.key);
-        const exDone  = EXERCISES.filter(ex=>planState[exKey(s.key,ex.id)]).length;
+    sorted.forEach(s => {
+        const effIso = sessEffDate(s);
+        const sd = localDate(effIso); sd.setHours(0,0,0,0);
+        const isToday  = sd.getTime()===today.getTime();
+        const isPast   = sd < today;
+        const done     = sessionDone(s.key);
+        const exDone   = EXERCISES.filter(ex=>planState[exKey(s.key,ex.id)]).length;
+        const isMoved  = effIso !== s.key;
 
         const autoOpen = isToday || s.key===nextKey;
         const isOpen   = benchOpen[s.key]!==undefined ? benchOpen[s.key] : autoOpen;
 
-        const wLabel   = s.weight%1===0?s.weight+' kg':s.weight.toFixed(1)+' kg';
         const tagClass = done?'tag-done':s.isGoal?'tag-goal':'tag-normal';
 
         const row = document.createElement('div');
@@ -629,9 +743,9 @@ function renderBench() {
 
         const hdr = document.createElement('div'); hdr.className='flat-hdr';
         hdr.innerHTML = `
-            <div class="flat-date">${isToday?'<span style="color:var(--accent)">Today</span>':fmtDay(sd)}</div>
+            <div class="flat-date">${isToday?'<span style="color:var(--accent)">Today</span>':fmtDay(sd)}${isMoved?'<span class="moved-badge">↔</span>':''}</div>
             <div class="flat-title">Session ${s.indexInWeek===0?'A':'B'}${s.isGoal?' 🎯':''}</div>
-            <span class="flat-tag ${tagClass}">${wLabel}</span>
+            <span class="flat-tag ${tagClass}">${wLabel(s.weight)}</span>
             <span class="flat-prog">${exDone}/${EXERCISES.length}</span>
             <span class="flat-chev" style="transform:${isOpen?'rotate(180deg)':''}">▼</span>`;
 
@@ -686,7 +800,7 @@ window.switchTab = function(tab, btn) {
 
 try {
     setLoading(true);
-    await Promise.all([loadPlanState(), loadRunState(), loadScheduleEvents()]);
+    await Promise.all([loadPlanState(), loadRunState(), loadScheduleEvents(), loadOverrides()]);
     window.renderSchedule();
     renderRun();
     renderBench();
