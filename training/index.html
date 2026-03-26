@@ -177,7 +177,7 @@
         </div>
         <div class="sched-legend">
             <span><span class="legend-dot" style="background:var(--blue)"></span>working weight</span>
-            <span><span class="legend-dot" style="background:var(--amber)"></span>goal weight (60 kg)</span>
+            <span><span class="legend-dot" style="background:var(--amber)"></span>goal weight (80 kg)</span>
             <span><span class="legend-dot" style="background:var(--green)"></span>week complete</span>
         </div>
         <div class="save-row" id="save-indicator"></div>
@@ -309,16 +309,14 @@ const db = getFirestore(app);
 // ════════════════════════════════════════════════════════════
 
 const EXERCISES = [
-    { id: 'warmup',  name: 'Warm-up',          detail: 'empty bar × 10, 30 kg × 5, –2.5 kg × 3' },
-    { id: 'bench',   name: 'Bench press',       detail: '3 × 10 reps' },
-    { id: 'rows',    name: 'Dumbbell rows',     detail: '3 × 10 each side' },
-    { id: 'ohp',     name: 'Overhead press',    detail: '3 × 8 reps' },
-    { id: 'dips',    name: 'Tricep dips',       detail: '3 × 10 reps' },
-    { id: 'stretch', name: 'Cool-down stretch', detail: 'chest & shoulders · 2 min' }
+    { id: 'bench',    name: 'Bench press',    detail: w => `3 × 10 · ${w} kg` },
+    { id: 'rows',     name: 'Dumbbell rows',  detail: () => '3 × 10 each side · 10–12 kg p/side' },
+    { id: 'shoulder', name: 'Shoulder press', detail: () => '3 × 8 · 20–25 kg' },
+    { id: 'dips',     name: 'Tricep dips',    detail: () => '3 × 10 · bodyweight' },
 ];
 const DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
-const WEIGHTS = [40,40,42.5,42.5,45,45,47.5,47.5,50,50,52.5,52.5,55,55,57.5,57.5,60,60,60,60,60,60,60,60,60,60,60,60];
+const WEIGHTS = [40,40,42.5,42.5,45,45,47.5,47.5,50,50,52.5,52.5,55,55,57.5,57.5,60,60,62.5,62.5,65,65,67.5,67.5,70,70,72.5,72.5,75,75,77.5,77.5,80,80,80];
 
 function addDays(d,n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 function isoDate(d) { return d.toISOString().slice(0,10); }
@@ -332,7 +330,7 @@ while (cur <= new Date(2026,6,31)) {
     if (dow===1||dow===4) {
         const wk = Math.floor(sCount/2);
         const weight = WEIGHTS[Math.min(wk, WEIGHTS.length-1)];
-        planSessions.push({ date: new Date(cur), key: isoDate(cur), week: wk, indexInWeek: sCount%2, weight, isGoal: weight>=60 });
+        planSessions.push({ date: new Date(cur), key: isoDate(cur), week: wk, indexInWeek: sCount%2, weight, isGoal: weight>=80 });
         sCount++;
     }
     cur = addDays(cur,1);
@@ -457,7 +455,7 @@ function renderPlan() {
                         <svg class="ex-check" width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
                     <span class="ex-name">${ex.name}</span>
-                    <span class="ex-detail">${ex.detail}</span>`;
+                    <span class="ex-detail">${ex.detail(s.weight)}</span>`;
                 row.onclick = e => {
                     e.stopPropagation();
                     planState[k]=!planState[k];
