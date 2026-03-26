@@ -729,18 +729,21 @@ function renderRunPlan() {
     RUN_PLAN.forEach(w => {
         const weekDone = w.runs.filter(r=>runState[r.id]?.done).length;
         const isAllDone = weekDone===w.runs.length;
-        const isCurrentWeek = w.runs.some(r=>{ const d=new Date(r.date+'T00:00:00'); d.setHours(0,0,0,0); return Math.abs(d-today)<7*86400000; });
+        const weekStart = new Date(w.runs[0].date+'T00:00:00'); weekStart.setHours(0,0,0,0);
+        const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate()+6);
+        const isCurrentWeek = today>=weekStart && today<=weekEnd;
         const isOpen = runUiState.openWeeks[w.id]!==undefined ? runUiState.openWeeks[w.id] : (isCurrentWeek||w.id==='w1');
 
         const block = document.createElement('div'); block.className='week-block';
         const hdr = document.createElement('div'); hdr.className='week-header';
         const totalKm = w.runs.reduce((t,r)=>t+r.km,0);
+        const dateRange = `${weekStart.getDate()} ${MONTHS[weekStart.getMonth()]} – ${weekEnd.getDate()} ${MONTHS[weekEnd.getMonth()]}`;
         const noteBadge = w.note ? `<span class="weight-tag ${w.note==='recovery'?'tag-normal':'tag-goal'}" style="font-size:10px;margin-left:6px">${w.note}</span>` : '';
         const doneBadge = isAllDone ? '<span class="weight-tag tag-done" style="font-size:10px;margin-left:4px">done</span>' : '';
 
         hdr.innerHTML = `
             <span class="week-num">${w.label}</span>
-            <span class="week-title" style="flex:1">${totalKm} km ${noteBadge}${doneBadge}</span>
+            <span class="week-title" style="flex:1">${dateRange} · ${totalKm} km ${noteBadge}${doneBadge}</span>
             <span class="week-prog">${weekDone}/${w.runs.length}</span>
             <span class="chevron" style="transform:${isOpen?'rotate(180deg)':''}">▼</span>`;
 
