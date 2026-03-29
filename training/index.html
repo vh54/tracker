@@ -121,6 +121,19 @@
         .reschedule-cancel { background: none; border: none; color: #555; cursor: pointer; font-size: .9rem; padding: 0 2px; }
         .reschedule-cancel:hover { color: #aaa; }
 
+        /* ── Password gate ── */
+        .pw-gate { position: fixed; inset: 0; background: #0f0f1a; display: flex; align-items: center; justify-content: center; z-index: 10000; flex-direction: column; gap: 1rem; }
+        .pw-gate h1 { font-size: 1.4rem; font-weight: 800; color: var(--accent); letter-spacing: -.5px; margin: 0; }
+        .pw-gate p  { font-size: .8rem; color: #555; margin: -.5rem 0 0; }
+        .pw-box { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 1.5rem 1.75rem; width: min(320px,90vw); display: flex; flex-direction: column; gap: .75rem; }
+        .pw-inp { background: #111128; border: 1px solid var(--card-border); color: #e0e0e0; border-radius: 8px; padding: .55rem .85rem; font-size: 1rem; outline: none; letter-spacing: .1em; }
+        .pw-inp:focus { border-color: var(--accent); }
+        .pw-btn { background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: .55rem; font-size: .95rem; font-weight: 700; cursor: pointer; transition: background .15s; }
+        .pw-btn:hover { background: #e55a25; }
+        .pw-err { font-size: .78rem; color: #f8a0a0; text-align: center; min-height: 1rem; }
+        @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+        .pw-shake { animation: shake .35s ease; }
+
         /* ── Misc ── */
         .spinner-overlay { position: fixed; inset: 0; background: rgba(15,15,26,.75); display: flex; align-items: center; justify-content: center; z-index: 9999; }
         .error-banner { background: rgba(220,53,69,.15); border: 1px solid rgba(220,53,69,.4); border-radius: 10px; padding: .75rem 1rem; color: #f8a0a0; margin-bottom: 1rem; font-size: .875rem; }
@@ -128,6 +141,17 @@
     </style>
 </head>
 <body>
+
+<div class="pw-gate" id="pwGate">
+    <h1><i class="bi bi-bar-chart-fill me-2"></i>TRAINING TRACKER</h1>
+    <p>Personal — enter password to continue</p>
+    <div class="pw-box">
+        <input class="pw-inp" type="password" id="pwInp" placeholder="Password"
+            onkeydown="if(event.key==='Enter')window._pwCheck()">
+        <button class="pw-btn" onclick="window._pwCheck()">Unlock</button>
+        <div class="pw-err" id="pwErr"></div>
+    </div>
+</div>
 
 <div class="spinner-overlay" id="loadingOverlay">
     <div class="spinner-border" style="color:var(--accent);width:3rem;height:3rem;" role="status"></div>
@@ -792,19 +816,60 @@ window.switchTab = function(tab, btn) {
 };
 
 // ═══════════════════════════════════════════════════
+// PASSWORD GATE
+// ═══════════════════════════════════════════════════
+
+const PW_HASH = '4f80bba2396e929ad6f6c6260fa31e62b35d43a3559baea0e6aff47af0570f7e';
+// ^ SHA-256 of the password — change via: new TextEncoder().encode(pw) → crypto.subtle.digest
+
+async function sha256(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+window._pwCheck = async function() {
+    const val = document.getElementById('pwInp').value;
+    const hash = await sha256(val);
+    if (hash === PW_HASH) {
+        sessionStorage.setItem('auth', '1');
+        document.getElementById('pwGate').style.display = 'none';
+        bootApp();
+    } else {
+        const inp = document.getElementById('pwInp');
+        const err = document.getElementById('pwErr');
+        err.textContent = 'Wrong password';
+        inp.classList.remove('pw-shake');
+        void inp.offsetWidth;                // reflow to restart animation
+        inp.classList.add('pw-shake');
+        inp.select();
+    }
+};
+
+// ═══════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════
 
-try {
-    setLoading(true);
-    await Promise.all([loadPlanState(), loadRunState(), loadScheduleEvents(), loadOverrides()]);
-    window.renderSchedule();
-    renderRun();
-    renderBench();
-} catch(e) {
-    showError('Could not load data. Check Firestore rules or internet connection.');
+async function bootApp() {
+    try {
+        setLoading(true);
+        await Promise.all([loadPlanState(), loadRunState(), loadScheduleEvents(), loadOverrides()]);
+        window.renderSchedule();
+        renderRun();
+        renderBench();
+    } catch(e) {
+        showError('Could not load data. Check Firestore rules or internet connection.');
+    }
+    setLoading(false);
 }
-setLoading(false);
+
+// Skip gate if already authenticated this session
+if (sessionStorage.getItem('auth') === '1') {
+    document.getElementById('pwGate').style.display = 'none';
+    bootApp();
+} else {
+    // Focus the password input
+    setTimeout(() => document.getElementById('pwInp')?.focus(), 50);
+}
 </script>
 </body>
 </html>
