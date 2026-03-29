@@ -290,15 +290,22 @@ function calcPace(km, timeStr) {
 // ═══════════════════════════════════════════════════
 
 const ROWS_VARIANTS = [
-    { name: 'Dumbbell rows',                       detail: '3 × 10 each side · 10–12 kg p/side', defaultWeight: 12 },
-    { name: 'Chest-Supported Seated Row Machine',  detail: '3 × 12 · moderate weight',           defaultWeight: 40 },
+    { name: 'Chest-Supported Row Machine', detail: '3 × 12 · 50–65 kg',           defaultWeight: 55  },
+    { name: 'Dumbbell rows',               detail: '3 × 10 each side · 10–14 kg', defaultWeight: 12  },
+    { name: 'Dumbbell Incline Row',        detail: '3 × 10 each side · 16–20 kg', defaultWeight: 18  },
+];
+
+const DIPS_VARIANTS = [
+    { name: 'Tricep dips',     detail: '3 × 10 · bodyweight',  defaultWeight: null },
+    { name: 'Tricep pushdown', detail: '3 × 12 · 15–25 kg',    defaultWeight: 20   },
+    { name: 'Diamond push-up', detail: '3 × 10 · bodyweight',  defaultWeight: null },
 ];
 
 const EXERCISES = [
-    { id: 'bench',    name: 'Bench press',    detail: w => `3 × 10 · ${wLabel(w)}`,  defaultWeight: s => s.weight + BAR },
-    { id: 'rows',     name: () => ROWS_VARIANTS[rowVariant].name,  detail: () => ROWS_VARIANTS[rowVariant].detail, defaultWeight: () => ROWS_VARIANTS[rowVariant].defaultWeight },
-    { id: 'shoulder', name: 'Shoulder press', detail: () => '3 × 8 · 20–25 kg',      defaultWeight: () => 22.5 },
-    { id: 'dips',     name: 'Tricep dips',    detail: () => '3 × 10 · bodyweight',   defaultWeight: null },
+    { id: 'bench',    name: 'Bench press',    detail: w => `3 × 10 · ${wLabel(w)}`,             defaultWeight: s => s.weight + BAR },
+    { id: 'rows',     name: () => ROWS_VARIANTS[rowVariant].name,   detail: () => ROWS_VARIANTS[rowVariant].detail,   defaultWeight: () => ROWS_VARIANTS[rowVariant].defaultWeight },
+    { id: 'shoulder', name: 'Shoulder press', detail: () => '3 × 8 · 20–25 kg',                 defaultWeight: () => 22.5 },
+    { id: 'dips',     name: () => DIPS_VARIANTS[dipsVariant].name,  detail: () => DIPS_VARIANTS[dipsVariant].detail,  defaultWeight: () => DIPS_VARIANTS[dipsVariant].defaultWeight },
 ];
 
 // Plate weights (bar not included). Display adds BAR.
@@ -356,7 +363,8 @@ const allRuns = [
 // ═══════════════════════════════════════════════════
 
 let planState      = {};   // bench exercise checks
-let rowVariant     = 0;    // 0 = Dumbbell rows, 1 = Seated row machine
+let rowVariant     = 0;    // index into ROWS_VARIANTS
+let dipsVariant    = 0;    // index into DIPS_VARIANTS
 let runState       = {};   // run completions + logs
 let scheduleEvents = {};   // custom events per date
 let dateOverrides  = { bench:{}, runs:{} };
@@ -380,8 +388,9 @@ function runEffDate(r)  { return dateOverrides.runs[r.id]  || r.date; }
 async function loadPlanState() {
     const snap = await getDoc(doc(db,'planState','bench'));
     if (snap.exists()) {
-        planState  = snap.data().exercises   || {};
-        rowVariant = snap.data().rowVariant  ?? 0;
+        planState   = snap.data().exercises   || {};
+        rowVariant  = snap.data().rowVariant  ?? 0;
+        dipsVariant = snap.data().dipsVariant ?? 0;
     }
 }
 async function loadRunState() {
@@ -405,7 +414,7 @@ function savePlan() {
     clearTimeout(planSaveTimer);
     planSaveTimer = setTimeout(async () => {
         try {
-            await setDoc(doc(db,'planState','bench'), { exercises: planState, rowVariant });
+            await setDoc(doc(db,'planState','bench'), { exercises: planState, rowVariant, dipsVariant });
             setIndicator('b-save-indicator','saved ✓'); setTimeout(()=>setIndicator('b-save-indicator',''), 600);
         } catch(e) { setIndicator('b-save-indicator','save error'); }
     }, 300);
@@ -825,30 +834,33 @@ function renderBench() {
         const body = document.createElement('div'); body.className='flat-body'+(isOpen?' open':'');
 
         EXERCISES.forEach(ex => {
-            const k        = exKey(s.key, ex.id);
-            const isDone   = !!planState[k];
-            const exName   = typeof ex.name   === 'function' ? ex.name()          : ex.name;
-            const exDetail = typeof ex.detail === 'function' ? ex.detail(s.weight): ex.detail;
-            const isRows   = ex.id === 'rows';
-            const actualW  = planState[k + '__actual'];
-            const nextVar  = ROWS_VARIANTS[(rowVariant + 1) % ROWS_VARIANTS.length];
+            const k          = exKey(s.key, ex.id);
+            const isDone     = !!planState[k];
+            const exName     = typeof ex.name   === 'function' ? ex.name()           : ex.name;
+            const exDetail   = typeof ex.detail === 'function' ? ex.detail(s.weight) : ex.detail;
+            const isSwap     = ex.id === 'rows' || ex.id === 'dips';
+            const varArr     = ex.id === 'rows' ? ROWS_VARIANTS : DIPS_VARIANTS;
+            const curIdx     = ex.id === 'rows' ? rowVariant : dipsVariant;
+            const nextVar    = varArr[(curIdx + 1) % varArr.length];
+            const actualW    = planState[k + '__actual'];
 
             const exRow = document.createElement('div');
             exRow.className = 'exercise-row' + (isDone ? ' done' : '');
 
-            // Build row content
             const cbSvg = `<svg class="ex-check" width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
             const detailText = isDone && actualW !== undefined ? `${actualW} kg logged` : exDetail;
+            // Swap button goes BEFORE the name (left side)
             exRow.innerHTML = `
                 <div class="ex-cb ${isDone?'checked':''}">${cbSvg}</div>
+                ${isSwap ? `<button class="ex-swap" title="→ ${nextVar.name}">⇄</button>` : ''}
                 <span class="ex-name">${exName}</span>
-                ${isRows ? `<button class="ex-swap" title="Switch to: ${nextVar.name}">⇄</button>` : ''}
                 <span class="ex-detail">${detailText}</span>`;
 
-            if (isRows) {
+            if (isSwap) {
                 exRow.querySelector('.ex-swap').onclick = e => {
                     e.stopPropagation();
-                    rowVariant = (rowVariant + 1) % ROWS_VARIANTS.length;
+                    if (ex.id === 'rows') rowVariant  = (rowVariant  + 1) % ROWS_VARIANTS.length;
+                    else                  dipsVariant = (dipsVariant + 1) % DIPS_VARIANTS.length;
                     savePlan(); renderBench();
                 };
             }
