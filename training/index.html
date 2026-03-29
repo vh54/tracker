@@ -295,6 +295,11 @@ const ROWS_VARIANTS = [
     { name: 'Dumbbell Incline Row',        detail: '3 × 10 each side · 16–20 kg', defaultWeight: 18  },
 ];
 
+const SHOULDER_VARIANTS = [
+    { name: 'Shoulder Press Dumbbell', detail: '3 × 8 · 20–28 kg p/side', defaultWeight: 22.5 },
+    { name: 'Shoulder Press Machine',  detail: '3 × 10 · 35–55 kg',       defaultWeight: 45   },
+];
+
 const DIPS_VARIANTS = [
     { name: 'Tricep dips',     detail: '3 × 10 · bodyweight',  defaultWeight: null },
     { name: 'Tricep pushdown', detail: '3 × 12 · 15–25 kg',    defaultWeight: 20   },
@@ -305,7 +310,7 @@ const DIPS_VARIANTS = [
 const EXERCISES = [
     { id: 'bench',    name: 'Bench press',    detail: w => `3 × 10 · ${wLabel(w)}`,             defaultWeight: s => s.weight + BAR },
     { id: 'rows',     name: () => ROWS_VARIANTS[rowVariant].name,   detail: () => ROWS_VARIANTS[rowVariant].detail,   defaultWeight: () => ROWS_VARIANTS[rowVariant].defaultWeight },
-    { id: 'shoulder', name: 'Shoulder press', detail: () => '3 × 8 · 20–25 kg',                 defaultWeight: () => 22.5 },
+    { id: 'shoulder', name: () => SHOULDER_VARIANTS[shoulderVariant].name, detail: () => SHOULDER_VARIANTS[shoulderVariant].detail, defaultWeight: () => SHOULDER_VARIANTS[shoulderVariant].defaultWeight },
     { id: 'dips',     name: () => DIPS_VARIANTS[dipsVariant].name,  detail: () => DIPS_VARIANTS[dipsVariant].detail,  defaultWeight: () => DIPS_VARIANTS[dipsVariant].defaultWeight },
 ];
 
@@ -364,8 +369,9 @@ const allRuns = [
 // ═══════════════════════════════════════════════════
 
 let planState      = {};   // bench exercise checks
-let rowVariant     = 0;    // index into ROWS_VARIANTS
-let dipsVariant    = 0;    // index into DIPS_VARIANTS
+let rowVariant      = 0;   // index into ROWS_VARIANTS
+let shoulderVariant = 0;   // index into SHOULDER_VARIANTS
+let dipsVariant     = 0;   // index into DIPS_VARIANTS
 let runState       = {};   // run completions + logs
 let scheduleEvents = {};   // custom events per date
 let dateOverrides  = { bench:{}, runs:{} };
@@ -390,8 +396,9 @@ async function loadPlanState() {
     const snap = await getDoc(doc(db,'planState','bench'));
     if (snap.exists()) {
         planState   = snap.data().exercises   || {};
-        rowVariant  = snap.data().rowVariant  ?? 0;
-        dipsVariant = snap.data().dipsVariant ?? 0;
+        rowVariant      = snap.data().rowVariant      ?? 0;
+        shoulderVariant = snap.data().shoulderVariant ?? 0;
+        dipsVariant     = snap.data().dipsVariant     ?? 0;
     }
 }
 async function loadRunState() {
@@ -415,7 +422,7 @@ function savePlan() {
     clearTimeout(planSaveTimer);
     planSaveTimer = setTimeout(async () => {
         try {
-            await setDoc(doc(db,'planState','bench'), { exercises: planState, rowVariant, dipsVariant });
+            await setDoc(doc(db,'planState','bench'), { exercises: planState, rowVariant, shoulderVariant, dipsVariant });
             setIndicator('b-save-indicator','saved ✓'); setTimeout(()=>setIndicator('b-save-indicator',''), 600);
         } catch(e) { setIndicator('b-save-indicator','save error'); }
     }, 300);
@@ -839,9 +846,9 @@ function renderBench() {
             const isDone     = !!planState[k];
             const exName     = typeof ex.name   === 'function' ? ex.name()           : ex.name;
             const exDetail   = typeof ex.detail === 'function' ? ex.detail(s.weight) : ex.detail;
-            const isSwap     = ex.id === 'rows' || ex.id === 'dips';
-            const varArr     = ex.id === 'rows' ? ROWS_VARIANTS : DIPS_VARIANTS;
-            const curIdx     = ex.id === 'rows' ? rowVariant : dipsVariant;
+            const isSwap     = ex.id === 'rows' || ex.id === 'shoulder' || ex.id === 'dips';
+            const varArr     = ex.id === 'rows' ? ROWS_VARIANTS : ex.id === 'shoulder' ? SHOULDER_VARIANTS : DIPS_VARIANTS;
+            const curIdx     = ex.id === 'rows' ? rowVariant : ex.id === 'shoulder' ? shoulderVariant : dipsVariant;
             const nextVar    = varArr[(curIdx + 1) % varArr.length];
             const actualW    = planState[k + '__actual'];
 
@@ -860,8 +867,9 @@ function renderBench() {
             if (isSwap) {
                 exRow.querySelector('.ex-swap').onclick = e => {
                     e.stopPropagation();
-                    if (ex.id === 'rows') rowVariant  = (rowVariant  + 1) % ROWS_VARIANTS.length;
-                    else                  dipsVariant = (dipsVariant + 1) % DIPS_VARIANTS.length;
+                    if      (ex.id === 'rows')     rowVariant      = (rowVariant      + 1) % ROWS_VARIANTS.length;
+                    else if (ex.id === 'shoulder') shoulderVariant = (shoulderVariant + 1) % SHOULDER_VARIANTS.length;
+                    else                           dipsVariant     = (dipsVariant     + 1) % DIPS_VARIANTS.length;
                     savePlan(); renderBench();
                 };
             }
