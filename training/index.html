@@ -64,7 +64,7 @@
         .moved-badge { font-family: monospace; font-size: 10px; color: var(--amber); background: var(--amber-bg); border-radius: 4px; padding: 1px 5px; margin-left: 4px; }
 
         /* ── Exercise rows (bench) ── */
-        .exercise-row { display: flex; align-items: center; padding: 9px 14px; gap: 10px; cursor: pointer; border-top: 1px solid var(--card-border); transition: background .1s; }
+        .exercise-row { display: flex; align-items: center; padding: 9px 14px; gap: 10px; border-top: 1px solid var(--card-border); transition: background .1s; }
         .exercise-row:hover { background: #111128; }
         .ex-cb { width: 17px; height: 17px; border: 1.5px solid var(--card-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--card-bg); transition: background .15s, border-color .15s; }
         .ex-cb.checked { background: var(--green); border-color: var(--green); }
@@ -75,6 +75,11 @@
         .ex-detail { font-family: monospace; font-size: 11px; color: #666; }
         .ex-swap { background: none; border: 1px solid var(--card-border); color: #666; border-radius: 5px; padding: 1px 6px; font-size: .68rem; cursor: pointer; flex-shrink: 0; transition: color .15s, border-color .15s; }
         .ex-swap:hover { color: var(--amber); border-color: var(--amber); }
+
+        /* ── Set dots (per-set bench tracking) ── */
+        .set-dots { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
+        .set-dot { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--card-border); background: var(--card-bg); cursor: pointer; transition: background .15s, border-color .15s; flex-shrink: 0; }
+        .set-dot.done { background: var(--green); border-color: var(--green); }
 
         /* ── Run checkbox ── */
         .run-cb { width: 20px; height: 20px; border: 1.5px solid var(--card-border); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--card-bg); transition: background .15s, border-color .15s; cursor: pointer; }
@@ -760,13 +765,21 @@ window.toggleRaceDone = function() {
 // BENCH TAB — flat list
 // ═══════════════════════════════════════════════════
 
-const exKey       = (sk,eid) => `${sk}__${eid}`;
-const sessionDone = sk => EXERCISES.every(ex => planState[exKey(sk,ex.id)]);
+const exKey     = (sk,eid) => `${sk}__${eid}`;
+const sKey      = (k, i)   => `${k}__s${i}`;
+const SET_COUNT = 3;
+
+function exIsDone(k) {
+    if (planState[k] === true) return true;
+    for (let i = 0; i < SET_COUNT; i++) if (!planState[sKey(k, i)]) return false;
+    return true;
+}
+const sessionDone = sk => EXERCISES.every(ex => exIsDone(exKey(sk, ex.id)));
 
 function updateBenchStats() {
     const sd  = planSessions.filter(s=>sessionDone(s.key)).length;
     let   ed  = 0;
-    planSessions.forEach(s => EXERCISES.forEach(ex => { if(planState[exKey(s.key,ex.id)]) ed++; }));
+    planSessions.forEach(s => EXERCISES.forEach(ex => { if(exIsDone(exKey(s.key,ex.id))) ed++; }));
     const total=planSessions.length, te=total*EXERCISES.length;
     document.getElementById('b-sessions-done').textContent  = sd;
     document.getElementById('b-exercises-done').textContent = ed;
@@ -776,7 +789,7 @@ function updateBenchStats() {
     document.getElementById('b-overall-bar').style.width    = pct+'%';
 }
 
-function showWeightInput(exRow, k, suggested, exName) {
+function showWeightInput(exRow, k, suggested, exName, onConfirm) {
     exRow.onclick = null;
     exRow.className = 'exercise-row';
     exRow.innerHTML = '';
@@ -807,9 +820,7 @@ function showWeightInput(exRow, k, suggested, exName) {
     const confirm = () => {
         const w = parseFloat(inp.value);
         if (isNaN(w) || w <= 0) { inp.focus(); inp.select(); return; }
-        planState[k] = true;
-        planState[k + '__actual'] = w;
-        savePlan(); renderBench(); updateBenchStats();
+        onConfirm(w);
     };
     btn.onclick        = e => { e.stopPropagation(); confirm(); };
     inp.onkeydown      = e => { e.stopPropagation(); if (e.key === 'Enter') confirm(); };
@@ -837,7 +848,7 @@ function renderBench() {
         const isToday  = sd.getTime()===today.getTime();
         const isPast   = sd < today;
         const done     = sessionDone(s.key);
-        const exDone   = EXERCISES.filter(ex=>planState[exKey(s.key,ex.id)]).length;
+        const exDone   = EXERCISES.filter(ex=>exIsDone(exKey(s.key,ex.id))).length;
         const isMoved  = effIso !== s.key;
 
         const autoOpen = isToday || s.key===nextKey;
@@ -860,7 +871,7 @@ function renderBench() {
 
         EXERCISES.forEach(ex => {
             const k          = exKey(s.key, ex.id);
-            const isDone     = !!planState[k];
+            const isDone     = exIsDone(k);
             const exName     = typeof ex.name   === 'function' ? ex.name()           : ex.name;
             const exDetail   = typeof ex.detail === 'function' ? ex.detail(s.weight) : ex.detail;
             const isSwap     = ex.id === 'rows' || ex.id === 'shoulder' || ex.id === 'dips';
@@ -872,14 +883,15 @@ function renderBench() {
             const exRow = document.createElement('div');
             exRow.className = 'exercise-row' + (isDone ? ' done' : '');
 
-            const cbSvg = `<svg class="ex-check" width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
             const detailText = isDone && actualW !== undefined ? `${actualW} kg logged` : exDetail;
-            // Swap button goes BEFORE the name (left side)
+            const dotsHtml = Array.from({length: SET_COUNT}, (_,i) =>
+                `<div class="set-dot${(planState[k]===true||!!planState[sKey(k,i)])?' done':''}" data-set="${i}"></div>`
+            ).join('');
             exRow.innerHTML = `
-                <div class="ex-cb ${isDone?'checked':''}">${cbSvg}</div>
                 ${isSwap ? `<button class="ex-swap" title="→ ${nextVar.name}">⇄</button>` : ''}
                 <span class="ex-name">${exName}</span>
-                <span class="ex-detail">${detailText}</span>`;
+                <span class="ex-detail">${detailText}</span>
+                <div class="set-dots">${dotsHtml}</div>`;
 
             if (isSwap) {
                 exRow.querySelector('.ex-swap').onclick = e => {
@@ -891,23 +903,38 @@ function renderBench() {
                 };
             }
 
-            exRow.onclick = () => {
-                if (!!planState[k]) {
-                    // Uncheck — clear actual too
-                    planState[k] = false;
-                    delete planState[k + '__actual'];
-                    savePlan(); renderBench(); updateBenchStats();
-                } else if (ex.defaultWeight) {
-                    // Show inline weight prompt
-                    const suggested = typeof ex.defaultWeight === 'function'
-                        ? ex.defaultWeight(s) : ex.defaultWeight;
-                    showWeightInput(exRow, k, suggested, exName);
-                } else {
-                    // No weight (e.g. dips) — just check
-                    planState[k] = true;
-                    savePlan(); renderBench(); updateBenchStats();
-                }
-            };
+            exRow.querySelector('.set-dots').querySelectorAll('.set-dot').forEach((dot, i) => {
+                dot.onclick = e => {
+                    e.stopPropagation();
+                    const sk_i = sKey(k, i);
+                    const alreadyDone = planState[k] === true || !!planState[sk_i];
+                    if (alreadyDone) {
+                        // Expand old whole-exercise format to per-set before unchecking
+                        if (planState[k] === true) {
+                            delete planState[k];
+                            for (let j = 0; j < SET_COUNT; j++) planState[sKey(k, j)] = true;
+                        }
+                        delete planState[sk_i];
+                        // Clear actual weight if no sets remain
+                        const anyLeft = Array.from({length:SET_COUNT}, (_,j) => planState[sKey(k,j)]).some(Boolean);
+                        if (!anyLeft) delete planState[k + '__actual'];
+                        savePlan(); renderBench(); updateBenchStats();
+                    } else {
+                        const hasActual = planState[k + '__actual'] !== undefined;
+                        const suggested = typeof ex.defaultWeight === 'function' ? ex.defaultWeight(s) : ex.defaultWeight;
+                        if (!hasActual && suggested !== null && suggested !== undefined) {
+                            showWeightInput(exRow, k, suggested, exName, w => {
+                                planState[k + '__actual'] = w;
+                                planState[sk_i] = true;
+                                savePlan(); renderBench(); updateBenchStats();
+                            });
+                        } else {
+                            planState[sk_i] = true;
+                            savePlan(); renderBench(); updateBenchStats();
+                        }
+                    }
+                };
+            });
 
             body.appendChild(exRow);
         });
