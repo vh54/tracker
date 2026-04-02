@@ -328,6 +328,7 @@ const EXERCISES = [
       defaultWeight: () => lastLoggedWeight('rows')     ?? ROWS_VARIANTS[rowVariant].defaultWeight },
     { id: 'shoulder', name: () => SHOULDER_VARIANTS[shoulderVariant].name,  detail: () => SHOULDER_VARIANTS[shoulderVariant].detail,
       defaultWeight: () => lastLoggedWeight('shoulder') ?? SHOULDER_VARIANTS[shoulderVariant].defaultWeight },
+    { id: 'abs',      name: 'Abdominal Machine', detail: '3 × 15 · 80 kg', defaultWeight: 80 },
     { id: 'dips',     name: () => DIPS_VARIANTS[dipsVariant].name,          detail: () => DIPS_VARIANTS[dipsVariant].detail,
       defaultWeight: () => {
           const vd = DIPS_VARIANTS[dipsVariant].defaultWeight;
